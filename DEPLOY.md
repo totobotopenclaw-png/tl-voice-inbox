@@ -2,7 +2,25 @@
 
 Deploy on your Windows miniPC for local voice capture and organization.
 
-## Prerequisites
+## Quick Start (Automated)
+
+### Option 1: One-Click Installer (Recommended)
+
+1. **Download the repository** as ZIP from GitHub
+2. **Extract** to `C:\apps\tl-voice-inbox`
+3. **Right-click** `install-deps.bat` → **"Run as administrator"**
+4. Wait for installation (downloads Node.js, pnpm, whisper.cpp, llama.cpp)
+5. **Restart** your terminal/PowerShell
+6. **Configure** `.env` file (copy from `.env.example`)
+7. **Run:** `pnpm setup && pnpm start`
+
+### Option 2: Manual Installation
+
+Follow the steps below if you prefer to install components manually.
+
+---
+
+## Prerequisites (Manual Install)
 
 ### 1. Install Node.js 22+
 Download from https://nodejs.org/ and install.
