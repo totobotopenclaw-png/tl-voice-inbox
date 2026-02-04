@@ -1,10 +1,11 @@
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import { db } from './db/connection.js';
-import { searchRoutes, healthRoutes, adminRoutes, eventsRoutes } from './routes/index.js';
+import { searchRoutes, healthRoutes, adminRoutes, eventsRoutes, epicsRoutes } from './routes/index.js';
 import { getWorkerRunner } from './queue/runner.js';
 import { sttWorker } from './workers/stt/index.js';
 import { extractWorker } from './workers/extract/index.js';
+import { reprocessWorker } from './workers/reprocess/index.js';
 import { scheduleCleanup } from './ttl/manager.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -28,6 +29,7 @@ server.register(healthRoutes, { prefix: '/api' });
 server.register(searchRoutes, { prefix: '/api' });
 server.register(adminRoutes, { prefix: '/api/admin' });
 server.register(eventsRoutes, { prefix: '/api/events' });
+server.register(epicsRoutes, { prefix: '/api/epics' });
 
 // Initialize and start workers
 async function initializeWorkers(): Promise<void> {
@@ -40,6 +42,7 @@ async function initializeWorkers(): Promise<void> {
   const runner = getWorkerRunner();
   runner.register(sttWorker);
   runner.register(extractWorker);
+  runner.register(reprocessWorker);
   
   // Start the runner
   runner.start();
