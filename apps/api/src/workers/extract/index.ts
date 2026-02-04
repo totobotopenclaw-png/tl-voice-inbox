@@ -283,11 +283,11 @@ export class ExtractWorker {
    */
   private async buildContext(
     transcript: string, 
-    epic: { id: string; title: string; description: string | null } | null
+    epic: { id: string; title: string; description: string | null; status: string; created_at: string; updated_at: string } | null
   ): Promise<{
     transcript: string;
     epicSnapshot?: {
-      epic: { id: string; title: string; description: string | null };
+      epic: { id: string; title: string; description: string | null; status: string; created_at: string; updated_at: string };
       aliases: string[];
       openActions: { id: string; title: string; priority: string; completed_at: string | null }[];
       openBlockers: { id: string; description: string; status: string }[];
@@ -314,7 +314,7 @@ export class ExtractWorker {
       ]);
 
       context.epicSnapshot = {
-        epic,
+        epic: epic as { id: string; title: string; description: string | null; status: string; created_at: string; updated_at: string },
         aliases: aliases.map(a => a.alias),
         openActions: actions as { id: string; title: string; priority: string; completed_at: string | null }[],
         openBlockers: blockers as { id: string; description: string; status: string }[],
@@ -357,7 +357,7 @@ export class ExtractWorker {
   private async runExtractionWithRetries(context: {
     transcript: string;
     epicSnapshot?: {
-      epic: { id: string; title: string; description: string | null };
+      epic: { id: string; title: string; description: string | null; status: string; created_at: string; updated_at: string };
       aliases: string[];
       openActions: { id: string; title: string; priority: string; completed_at: string | null }[];
       openBlockers: { id: string; description: string; status: string }[];

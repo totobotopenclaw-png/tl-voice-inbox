@@ -1,21 +1,48 @@
 // Prompt builder for LLM extraction
 
-import type { Epic, KnowledgeItem, Action, Blocker, Dependency, Issue } from '@tl-voice-inbox/shared';
-
 export interface EpicSnapshot {
-  epic: Epic;
+  epic: {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  };
   aliases: string[];
-  openActions: Action[];
-  openBlockers: Blocker[];
-  openDependencies: Dependency[];
-  openIssues: Issue[];
+  openActions: Array<{
+    id: string;
+    title: string;
+    priority: string;
+    completed_at: string | null;
+  }>;
+  openBlockers: Array<{
+    id: string;
+    description: string;
+    status: string;
+  }>;
+  openDependencies: Array<{
+    id: string;
+    description: string;
+    status: string;
+  }>;
+  openIssues: Array<{
+    id: string;
+    description: string;
+    status: string;
+  }>;
 }
 
 export interface ExtractionContext {
   transcript: string;
   epicSnapshot?: EpicSnapshot;
   recentEvents: Array<{ id: string; snippet: string; createdAt: string }>;
-  relatedKnowledge: KnowledgeItem[];
+  relatedKnowledge: Array<{
+    id: string;
+    title: string;
+    kind: string;
+    body_md: string;
+  }>;
 }
 
 // JSON schema for the extraction output (included in prompt)
