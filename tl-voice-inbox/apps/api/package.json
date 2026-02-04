@@ -1,0 +1,35 @@
+{
+  "name": "@tl-voice-inbox/api",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:rollback": "tsx src/db/rollback.ts",
+    "test:db": "tsx src/db/test.ts",
+    "model:download": "tsx scripts/model-manager.ts download",
+    "model:list": "tsx scripts/model-manager.ts list",
+    "model:check": "tsx scripts/model-manager.ts check"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^9.4.0",
+    "@tl-voice-inbox/shared": "workspace:*",
+    "better-sqlite3": "^12.1.0",
+    "fastify": "^5.2.0",
+    "uuid": "^11.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
