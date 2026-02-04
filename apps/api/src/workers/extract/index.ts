@@ -98,7 +98,16 @@ export class ExtractWorker {
 
       // Step 5: Build context for LLM
       const resolvedEpic = candidates[0]?.epic || null;
-      const context = await this.buildContext(payload.transcript, resolvedEpic);
+      // Ensure epic has all required fields for the context
+      const epicForContext = resolvedEpic ? {
+        id: resolvedEpic.id,
+        title: resolvedEpic.title,
+        description: resolvedEpic.description,
+        status: (resolvedEpic as { status?: string }).status || 'active',
+        created_at: (resolvedEpic as { created_at?: string }).created_at || new Date().toISOString(),
+        updated_at: (resolvedEpic as { updated_at?: string }).updated_at || new Date().toISOString(),
+      } : null;
+      const context = await this.buildContext(payload.transcript, epicForContext);
 
       // Step 6: Run LLM extraction with retries
       const extractionResult = await this.runExtractionWithRetries(context);

@@ -119,7 +119,7 @@ export function validateExtractionOutput(data: unknown): {
 
 // Get validation errors as readable string
 export function formatValidationErrors(errors: z.ZodError): string {
-  return errors.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
+  return errors.errors.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`).join('; ');
 }
 
 // Retry counter for extraction attempts

@@ -79,7 +79,16 @@ export class ReprocessWorker {
       }
 
       // Step 4: Build context with forced epic
-      const context = await this.buildContext(event.transcript, epic);
+      // Ensure epic has all required fields for the context
+      const epicForContext = epic ? {
+        id: epic.id,
+        title: epic.title,
+        description: epic.description,
+        status: (epic as { status?: string }).status || 'active',
+        created_at: (epic as { created_at?: string }).created_at || new Date().toISOString(),
+        updated_at: (epic as { updated_at?: string }).updated_at || new Date().toISOString(),
+      } : null;
+      const context = await this.buildContext(event.transcript, epicForContext);
 
       // Step 5: Run LLM extraction with retries
       const extractionResult = await this.runExtractionWithRetries(context);

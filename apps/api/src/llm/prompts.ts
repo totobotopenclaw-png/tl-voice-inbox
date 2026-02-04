@@ -227,12 +227,19 @@ export function getSystemPrompt(): string {
  * Build context for epic snapshot
  */
 export async function buildEpicSnapshot(
-  epic: Epic,
+  epic: {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  },
   aliases: string[],
-  getActions: (epicId: string) => Promise<Action[]>,
-  getBlockers: (epicId: string) => Promise<Blocker[]>,
-  getDependencies: (epicId: string) => Promise<Dependency[]>,
-  getIssues: (epicId: string) => Promise<Issue[]>
+  getActions: (epicId: string) => Promise<Array<{ id: string; title: string; priority: string; completed_at: string | null }>>,
+  getBlockers: (epicId: string) => Promise<Array<{ id: string; description: string; status: string }>>,
+  getDependencies: (epicId: string) => Promise<Array<{ id: string; description: string; status: string }>>,
+  getIssues: (epicId: string) => Promise<Array<{ id: string; description: string; status: string }>>
 ): Promise<EpicSnapshot> {
   const [actions, blockers, dependencies, issues] = await Promise.all([
     getActions(epic.id),
