@@ -1,19 +1,35 @@
 import { useState, useEffect, useCallback } from 'react';
 
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export interface Event {
   id: string;
-  status: 'queued' | 'transcribing' | 'transcribed' | 'processing' | 'processed' | 'needs_review' | 'error';
+  status: 'queued' | 'transcribing' | 'transcribed' | 'processing' | 'processed' | 'needs_review' | 'completed' | 'error';
   transcript: string | null;
   hasTranscript: boolean;
+  transcriptPreview: string | null;
   detectedCommand: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Candidate {
+  epicId: string;
+  title: string;
+  confidence: number;
+}
+
+export interface AssignedEpic {
+  id: string;
+  title: string;
 }
 
 export interface EventDetail extends Event {
   statusReason: string | null;
   transcriptExpiresAt: string | null;
   jobs: JobInfo[];
+  candidates: Candidate[] | null;
+  assignedEpic: AssignedEpic | null;
 }
 
 export interface JobInfo {
@@ -29,41 +45,26 @@ export interface JobInfo {
 
 interface EventsResponse {
   events: Event[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  };
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-export function useEvents(limit: number = 20) {
+export function useEvents(limit: number = 50) {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<EventsResponse['pagination'] | null>(null);
 
-  const fetchEvents = useCallback(async (offset: number = 0) => {
+  const fetchEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/events?limit=${limit}&offset=${offset}`);
+      const response = await fetch(`${API_URL}/api/events?limit=${limit}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch events: ${response.status}`);
       }
 
       const data: EventsResponse = await response.json();
-      
-      if (offset === 0) {
-        setEvents(data.events);
-      } else {
-        setEvents(prev => [...prev, ...data.events]);
-      }
-      setPagination(data.pagination);
+      setEvents(data.events);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -72,17 +73,11 @@ export function useEvents(limit: number = 20) {
   }, [limit]);
 
   const refresh = useCallback(() => {
-    fetchEvents(0);
+    fetchEvents();
   }, [fetchEvents]);
 
-  const loadMore = useCallback(() => {
-    if (pagination?.hasMore && !loading) {
-      fetchEvents(pagination.offset + pagination.limit);
-    }
-  }, [pagination, loading, fetchEvents]);
-
   useEffect(() => {
-    fetchEvents(0);
+    fetchEvents();
   }, [fetchEvents]);
 
   // Auto-refresh every 5 seconds when there are processing events
@@ -94,7 +89,7 @@ export function useEvents(limit: number = 20) {
     if (!hasProcessingEvents) return;
 
     const interval = setInterval(() => {
-      fetchEvents(0);
+      fetchEvents();
     }, 5000);
 
     return () => clearInterval(interval);
@@ -104,9 +99,7 @@ export function useEvents(limit: number = 20) {
     events,
     loading,
     error,
-    pagination,
     refresh,
-    loadMore,
   };
 }
 
@@ -134,7 +127,7 @@ export function useEventDetail(eventId: string | null) {
         throw new Error(`Failed to fetch event: ${response.status}`);
       }
 
-      const data: EventDetail = await response.json();
+      const data = await response.json();
       setEvent(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

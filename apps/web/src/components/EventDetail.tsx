@@ -1,4 +1,4 @@
-import { useEventDetail } from '../hooks/useEvents';
+import { useEventDetail, API_URL } from '../hooks/useEvents';
 import { 
   X, 
   Clock, 
@@ -9,9 +9,13 @@ import {
   Sparkles,
   Mic,
   HelpCircle,
-  RotateCw
+  RotateCw,
+  FolderKanban,
+  ArrowRight,
+  Check
 } from 'lucide-react';
 import { formatDate } from '../utils/date';
+import { useState } from 'react';
 
 interface EventDetailPanelProps {
   eventId: string;
@@ -49,10 +53,16 @@ const statusConfig = {
     bgColor: 'bg-green-950',
     icon: CheckCircle2 
   },
+  completed: { 
+    label: 'Completed', 
+    color: 'text-green-400', 
+    bgColor: 'bg-green-950',
+    icon: CheckCircle2 
+  },
   needs_review: { 
     label: 'Needs Review', 
-    color: 'text-yellow-400', 
-    bgColor: 'bg-yellow-950',
+    color: 'text-amber-400', 
+    bgColor: 'bg-amber-950',
     icon: HelpCircle 
   },
   error: { 
@@ -73,6 +83,36 @@ const jobStatusConfig = {
 
 export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
   const { event, loading, error, refresh } = useEventDetail(eventId);
+  const [selectedEpic, setSelectedEpic] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+
+  const handleResolve = async (epicId: string | null) => {
+    setResolving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/events/${eventId}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ epicId }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to resolve');
+      }
+      
+      refresh();
+    } catch (err) {
+      alert('Failed to resolve: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'bg-emerald-500';
+    if (confidence >= 0.5) return 'bg-amber-500';
+    return 'bg-red-500';
+  };
 
   if (loading) {
     return (
@@ -97,7 +137,7 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
     );
   }
 
-  const config = statusConfig[event.status];
+  const config = statusConfig[event.status] || statusConfig.error;
   const StatusIcon = config.icon;
 
   return (
@@ -145,6 +185,82 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
           )}
         </div>
 
+        {/* Assigned Epic */}
+        {event.assignedEpic && (
+          <div className="space-y-2">
+            <h4 className="font-medium text-slate-300 flex items-center gap-2">
+              <FolderKanban size={16} /> Assigned Epic
+            </h4>
+            <div className="bg-emerald-950/30 border border-emerald-900 rounded-lg p-3 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600/20 flex items-center justify-center">
+                <FolderKanban size={16} className="text-emerald-400" />
+              </div>
+              <span className="text-emerald-200 font-medium">{event.assignedEpic.title}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Candidates (for needs_review status) */}
+        {event.status === 'needs_review' && event.candidates && event.candidates.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="font-medium text-slate-300 flex items-center gap-2">
+              <HelpCircle size={16} /> Candidate Epics
+            </h4>
+            <div className="space-y-2">
+              {event.candidates.map((candidate) => (
+                <button
+                  key={candidate.epicId}
+                  onClick={() => setSelectedEpic(candidate.epicId)}
+                  disabled={resolving}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    selectedEpic === candidate.epicId
+                      ? 'bg-primary-600/10 border-primary-500/50'
+                      : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FolderKanban size={14} className="text-slate-400" />
+                    <span className="text-sm text-slate-200">{candidate.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${getConfidenceColor(candidate.confidence)}`}
+                        style={{ width: `${candidate.confidence * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-slate-500 w-8 text-right">
+                      {Math.round(candidate.confidence * 100)}%
+                    </span>
+                    {selectedEpic === candidate.epicId && (
+                      <Check size={14} className="text-primary-400" />
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            {/* Resolve Actions */}
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => handleResolve(selectedEpic)}
+                disabled={!selectedEpic || resolving}
+                className="flex-1 px-3 py-2 bg-primary-600 hover:bg-primary-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-sm font-medium text-white transition-colors flex items-center justify-center gap-2"
+              >
+                {resolving && <Loader2 size={14} className="animate-spin" />}
+                Assign & Reprocess
+              </button>
+              <button
+                onClick={() => handleResolve(null)}
+                disabled={resolving}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-300 transition-colors"
+              >
+                No Epic
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Transcript */}
         {event.transcript ? (
           <div className="space-y-2">
@@ -178,7 +294,7 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
         )}
 
         {/* Jobs */}
-        {event.jobs.length > 0 && (
+        {event.jobs?.length > 0 && (
           <div className="space-y-2">
             <h4 className="font-medium text-slate-300">Processing Jobs</h4>
             <div className="space-y-2">

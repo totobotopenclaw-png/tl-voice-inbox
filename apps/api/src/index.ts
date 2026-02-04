@@ -1,11 +1,12 @@
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import { db } from './db/connection.js';
-import { searchRoutes, healthRoutes, adminRoutes, eventsRoutes, epicsRoutes } from './routes/index.js';
+import { searchRoutes, healthRoutes, adminRoutes, llmAdminRoutes, eventsRoutes, epicsRoutes } from './routes/index.js';
 import { getWorkerRunner } from './queue/runner.js';
 import { sttWorker } from './workers/stt/index.js';
 import { extractWorker } from './workers/extract/index.js';
 import { reprocessWorker } from './workers/reprocess/index.js';
+import { llmManager } from './llm/manager.js';
 import { scheduleCleanup } from './ttl/manager.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -28,6 +29,7 @@ await server.register(multipart, {
 server.register(healthRoutes, { prefix: '/api' });
 server.register(searchRoutes, { prefix: '/api' });
 server.register(adminRoutes, { prefix: '/api/admin' });
+server.register(llmAdminRoutes, { prefix: '/api/admin/llm' });
 server.register(eventsRoutes, { prefix: '/api/events' });
 server.register(epicsRoutes, { prefix: '/api/epics' });
 
@@ -37,6 +39,16 @@ async function initializeWorkers(): Promise<void> {
   
   // Initialize STT worker (downloads model if needed)
   await sttWorker.initialize();
+  
+  // Initialize LLM server (starts llama-server subprocess)
+  try {
+    console.log('[Server] Starting LLM server...');
+    await llmManager.start();
+    console.log('[Server] LLM server started');
+  } catch (err) {
+    console.error('[Server] Failed to start LLM server:', err);
+    console.log('[Server] Continuing without LLM - extraction will fail until LLM is available');
+  }
   
   // Register workers with runner
   const runner = getWorkerRunner();
@@ -65,6 +77,13 @@ async function closeGracefully(signal: string): Promise<void> {
   // Stop worker runner
   const runner = getWorkerRunner();
   await runner.stop();
+  
+  // Stop LLM server
+  try {
+    await llmManager.stop();
+  } catch (err) {
+    console.error('[Server] Error stopping LLM server:', err);
+  }
   
   // Clear cleanup interval
   if (cleanupInterval) {

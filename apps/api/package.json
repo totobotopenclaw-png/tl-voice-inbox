@@ -13,14 +13,18 @@
     "test:db": "tsx src/db/test.ts",
     "model:download": "tsx scripts/model-manager.ts download",
     "model:list": "tsx scripts/model-manager.ts list",
-    "model:check": "tsx scripts/model-manager.ts check"
+    "model:check": "tsx scripts/model-manager.ts check",
+    "llm:download": "tsx scripts/llm-manager.ts download",
+    "llm:check": "tsx scripts/llm-manager.ts check",
+    "llm:ensure": "tsx scripts/llm-manager.ts ensure"
   },
   "dependencies": {
     "@fastify/multipart": "^9.4.0",
     "@tl-voice-inbox/shared": "workspace:*",
     "better-sqlite3": "^12.1.0",
     "fastify": "^5.2.0",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",

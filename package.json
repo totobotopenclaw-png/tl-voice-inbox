@@ -13,11 +13,17 @@
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
     "build": "pnpm -r build",
+    "build:web": "pnpm --filter web build",
+    "build:api": "pnpm --filter api build",
+    "start": "pnpm --filter api start",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "db:migrate": "pnpm --filter api db:migrate",
     "db:rollback": "pnpm --filter api db:rollback",
-    "test:db": "pnpm --filter api test:db"
+    "test:db": "pnpm --filter api test:db",
+    "model:download": "pnpm --filter api model:download",
+    "llm:download": "pnpm --filter api llm:download",
+    "setup": "pnpm install && pnpm build:web && pnpm db:migrate"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
