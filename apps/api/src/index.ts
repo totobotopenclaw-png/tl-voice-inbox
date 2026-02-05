@@ -19,6 +19,22 @@ const server = Fastify({
   },
 });
 
+// Add CORS headers for all routes
+server.addHook('onSend', async (request, reply, payload) => {
+  reply.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return payload;
+});
+
+// Handle OPTIONS preflight requests
+server.options('*', async (request, reply) => {
+  reply.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  reply.status(204).send();
+});
+
 // Register multipart plugin for file uploads
 await server.register(multipart, {
   limits: {
