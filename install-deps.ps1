@@ -18,28 +18,24 @@ if(!(Test-Path $InstallDir)){
 # ============================================
 Write-Host "Installing Node.js 22..." -ForegroundColor Yellow
 
-# Check if already installed
-try{
-    $nodeVer=(Get-Command node -ErrorAction Stop).Source
+$nodePath="C:\Program Files\nodejs"
+$npmPath="$nodePath\npm.cmd"
+
+if(Test-Path "$nodePath\node.exe"){
+    $env:Path="$nodePath;$env:Path"
     $ver=node --version
     Write-Host "Found: Node.js $ver" -ForegroundColor Green
-}catch{
-    # Download and install
+}else{
+    Write-Host "Downloading Node.js..." -ForegroundColor Gray
     $url="https://nodejs.org/dist/v22.13.1/node-v22.13.1-x64.msi"
     $out="$env:TEMP\node.msi"
-    
-    Write-Host "Downloading Node.js..." -ForegroundColor Gray
     Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
     
     Write-Host "Installing Node.js (this may take a minute)..." -ForegroundColor Gray
     Start-Process msiexec.exe -ArgumentList "/i", $out, "/quiet", "/norestart" -Wait
     Remove-Item $out -ErrorAction SilentlyContinue
     
-    # Add Node.js to current session PATH
-    $nodePath="C:\Program Files\nodejs"
     $env:Path="$nodePath;$env:Path"
-    
-    # Verify
     $ver=node --version
     Write-Host "OK: Node.js $ver installed" -ForegroundColor Green
 }
@@ -50,21 +46,39 @@ try{
 Write-Host ""
 Write-Host "Installing pnpm..." -ForegroundColor Yellow
 
-try{
-    $pnpmVer=pnpm --version
-    Write-Host "Found: pnpm $pnpmVer" -ForegroundColor Green
-}catch{
+# Check common pnpm locations
+$pnpmPaths=@(
+    "$env:LOCALAPPDATA\pnpm\pnpm.exe",
+    "$env:APPDATA\npm\pnpm.cmd",
+    "$nodePath\pnpm.cmd"
+)
+$pnpmFound=$null
+foreach($p in $pnpmPaths){
+    if(Test-Path $p){
+        $pnpmFound=$p
+        $env:Path="$(Split-Path $p);$env:Path"
+        break
+    }
+}
+
+if($pnpmFound){
+    $ver=pnpm --version
+    Write-Host "Found: pnpm $ver at $pnpmFound" -ForegroundColor Green
+}else{
     Write-Host "Installing pnpm..." -ForegroundColor Gray
     
     # Install via npm
-    npm install -g pnpm
+    & "$npmPath" install -g pnpm
     
-    # Add to PATH
-    $pnpmPath="$env:LOCALAPPDATA\pnpm"
-    $env:Path="$pnpmPath;$env:Path"
+    # Find and add pnpm to PATH
+    $pnpmDir="$env:LOCALAPPDATA\pnpm"
+    if(Test-Path "$pnpmDir\pnpm.exe"){
+        $env:Path="$pnpmDir;$env:Path"
+        [Environment]::SetEnvironmentVariable("Path","$pnpmDir;$([Environment]::GetEnvironmentVariable("Path","User"))","User")
+    }
     
-    $pnpmVer=pnpm --version
-    Write-Host "OK: pnpm $pnpmVer installed" -ForegroundColor Green
+    $ver=pnpm --version
+    Write-Host "OK: pnpm $ver installed" -ForegroundColor Green
 }
 
 # ============================================
@@ -89,7 +103,6 @@ if(Test-Path $wExe){
     Expand-Archive -Path $zip -DestinationPath $wDir -Force
     Remove-Item $zip -ErrorAction SilentlyContinue
     
-    # Add to PATH
     $env:Path="$wDir;$env:Path"
     $userPath=[Environment]::GetEnvironmentVariable("Path","User")
     if($userPath -notlike "*$wDir*"){
@@ -121,7 +134,6 @@ if(Test-Path $lExe){
     Expand-Archive -Path $zip -DestinationPath $lDir -Force
     Remove-Item $zip -ErrorAction SilentlyContinue
     
-    # Add to PATH
     $env:Path="$lDir;$env:Path"
     $userPath=[Environment]::GetEnvironmentVariable("Path","User")
     if($userPath -notlike "*$lDir*"){
@@ -140,7 +152,7 @@ Write-Host "Installation Complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Close and reopen PowerShell (as regular user)" -ForegroundColor White
+Write-Host "  1. Close and reopen PowerShell" -ForegroundColor White
 Write-Host "  2. cd C:\apps\tl-voice-inbox" -ForegroundColor White
 Write-Host "  3. copy .env.example .env" -ForegroundColor White
 Write-Host "  4. notepad .env  (edit paths if needed)" -ForegroundColor White
