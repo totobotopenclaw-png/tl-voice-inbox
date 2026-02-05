@@ -265,7 +265,7 @@ class LLMManager {
       
       this.config = {
         modelPath,
-        port: config?.port || parseInt(process.env.LLM_PORT || '8080', 10),
+        port: config?.port || parseInt(process.env.LLM_PORT || '8081', 10),
         contextSize: config?.contextSize || parseInt(process.env.LLM_CONTEXT_SIZE || '8192', 10),
         threads: config?.threads || parseInt(process.env.LLM_THREADS || '4', 10),
         batchSize: config?.batchSize || parseInt(process.env.LLM_BATCH_SIZE || '512', 10),
