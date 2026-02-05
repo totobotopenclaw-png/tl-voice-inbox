@@ -164,11 +164,13 @@ if(Test-Path $lExe){
     
     New-Item -ItemType Directory -Path $lDir -Force | Out-Null
     
-    # Try multiple URLs - repo moved to ggml-org and build numbers change
+    # Try multiple URLs - repo moved to ggml-org and build numbers change frequently
+    # Get latest from: https://github.com/ggml-org/llama.cpp/releases
     $urls=@(
+        "https://github.com/ggml-org/llama.cpp/releases/download/b4573/llama-b4573-bin-win-avx2-x64.zip",
+        "https://github.com/ggml-org/llama.cpp/releases/download/b4563/llama-b4563-bin-win-avx2-x64.zip",
         "https://github.com/ggml-org/llama.cpp/releases/download/b4528/llama-b4528-bin-win-avx2-x64.zip",
-        "https://github.com/ggerganov/llama.cpp/releases/download/b4528/llama-b4528-bin-win-avx2-x64.zip",
-        "https://github.com/ggml-org/llama.cpp/releases/download/b4530/llama-b4530-bin-win-avx2-x64.zip"
+        "https://github.com/ggerganov/llama.cpp/releases/download/b4528/llama-b4528-bin-win-avx2-x64.zip"
     )
     
     $zip="$env:TEMP\llama.zip"
@@ -204,11 +206,55 @@ if(Test-Path $lExe){
 }
 
 # ============================================
+# 5. Verify installations
+# ============================================
+Write-Host ""
+Write-Host "Verifying installations..." -ForegroundColor Yellow
+
+# Refresh PATH from registry
+$env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+
+# Check whisper-cli
+$whisperFound = $false
+try {
+    $whisperVer = & whisper-cli --help 2>&1 | Select-String -Pattern "whisper" | Select-Object -First 1
+    if ($whisperVer) {
+        Write-Host "OK: whisper-cli found in PATH" -ForegroundColor Green
+        $whisperFound = $true
+    }
+} catch {
+    Write-Host "WARNING: whisper-cli not found in PATH" -ForegroundColor Yellow
+    Write-Host "  Location: $wDir\whisper-cli.exe" -ForegroundColor Gray
+    Write-Host "  You may need to restart PowerShell or add to PATH manually" -ForegroundColor Gray
+}
+
+# Check llama-server
+$llamaFound = $false
+try {
+    $llamaVer = & llama-server --help 2>&1 | Select-String -Pattern "llama" | Select-Object -First 1
+    if ($llamaVer) {
+        Write-Host "OK: llama-server found in PATH" -ForegroundColor Green
+        $llamaFound = $true
+    }
+} catch {
+    Write-Host "WARNING: llama-server not found in PATH" -ForegroundColor Yellow
+    Write-Host "  Location: $lDir\llama-server.exe" -ForegroundColor Gray
+    Write-Host "  LLM extraction will not work without this" -ForegroundColor Gray
+}
+
+# ============================================
 # Summary
 # ============================================
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Installation Complete!" -ForegroundColor Green
+if ($whisperFound -and $llamaFound) {
+    Write-Host "Installation Complete!" -ForegroundColor Green
+} elseif ($whisperFound) {
+    Write-Host "Installation Partially Complete" -ForegroundColor Yellow
+    Write-Host "(Whisper OK, Llama missing)" -ForegroundColor Yellow
+} else {
+    Write-Host "Installation Issues Detected" -ForegroundColor Red
+}
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
@@ -219,3 +265,11 @@ Write-Host "  4. notepad .env  (edit paths if needed)" -ForegroundColor White
 Write-Host "  5. pnpm setup" -ForegroundColor White
 Write-Host "  6. pnpm start" -ForegroundColor White
 Write-Host ""
+
+if (-not $llamaFound) {
+    Write-Host "To manually install llama.cpp:" -ForegroundColor Yellow
+    Write-Host "  1. Download from: https://github.com/ggml-org/llama.cpp/releases" -ForegroundColor White
+    Write-Host "  2. Extract llama-server.exe to: $lDir" -ForegroundColor White
+    Write-Host "  3. Add $lDir to your PATH" -ForegroundColor White
+    Write-Host ""
+}
