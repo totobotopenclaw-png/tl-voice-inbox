@@ -147,7 +147,7 @@ export function NeedsReview() {
                   <span className="text-sm font-medium text-amber-400">Ambiguous Event</span>
                   <span className="text-slate-600">•</span>
                   <span className="text-sm text-slate-500">{new Date(event.createdAt).toLocaleString()}</span>
-                  {event.detectedCommand && (>
+                  {event.detectedCommand && (
                     <>
                       <span className="text-slate-600">•</span>
                       <span className="text-xs px-2 py-0.5 bg-slate-800 rounded text-slate-400">

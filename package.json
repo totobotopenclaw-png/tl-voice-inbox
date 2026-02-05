@@ -12,7 +12,7 @@
     "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
-    "build": "pnpm -r build",
+    "build": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter web build",
     "build:web": "pnpm --filter web build",
     "build:api": "pnpm --filter api build",
     "start": "pnpm --filter api start",
