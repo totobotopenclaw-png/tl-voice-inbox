@@ -23,7 +23,8 @@
     "test:db": "pnpm --filter api test:db",
     "model:download": "pnpm --filter api model:download",
     "llm:download": "pnpm --filter api llm:download",
-    "setup": "pnpm install && pnpm build:web && pnpm db:migrate"
+    "setup": "pnpm install && pnpm build && pnpm db:migrate",
+    "setup:dev": "pnpm install && pnpm db:migrate"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
