@@ -283,7 +283,7 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
             </div>
             {event.transcriptExpiresAt && (
               <p className="text-xs text-slate-500">
-                Expires: {formatDate(event.transcriptExpiresAt, { dateStyle: 'medium' })}
+                Expires: {formatDate(event.transcriptExpiresAt)}
               </p>
             )}
           </div>

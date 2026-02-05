@@ -41,22 +41,40 @@ export function formatDistanceToNow(dateString: string): string {
  */
 export function formatDate(dateString: string, options?: Intl.DateTimeFormatOptions): string {
   if (!dateString) return 'N/A';
-  
+
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return 'Invalid Date';
-  
-  const defaultOptions: Intl.DateTimeFormatOptions = {
+
+  // Build options carefully - avoid spreading unknown options
+  const opts: Intl.DateTimeFormatOptions = {
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   };
-  
+
+  // Only add time if no dateStyle is requested (dateStyle conflicts with other options)
+  if (!options?.dateStyle) {
+    opts.hour = '2-digit';
+    opts.minute = '2-digit';
+  }
+
+  // Safely copy only valid options
+  if (options) {
+    const validKeys: (keyof Intl.DateTimeFormatOptions)[] = [
+      'weekday', 'era', 'year', 'month', 'day', 'hour', 'minute', 'second',
+      'timeZoneName', 'formatMatcher', 'hour12', 'timeZone'
+    ];
+    for (const key of validKeys) {
+      if (key in options) {
+        (opts as Record<string, unknown>)[key] = options[key];
+      }
+    }
+  }
+
   try {
-    return date.toLocaleString('en-US', { ...defaultOptions, ...options });
+    return date.toLocaleString('en-US', opts);
   } catch (e) {
     console.error('Date formatting error:', e);
-    return date.toISOString();
+    return date.toISOString().slice(0, 16).replace('T', ' ');
   }
 }
 
