@@ -19,7 +19,6 @@ if(!(Test-Path $InstallDir)){
 Write-Host "Installing Node.js 22..." -ForegroundColor Yellow
 
 $nodePath="C:\Program Files\nodejs"
-$npmPath="$nodePath\npm.cmd"
 
 if(Test-Path "$nodePath\node.exe"){
     $env:Path="$nodePath;$env:Path"
@@ -46,7 +45,6 @@ if(Test-Path "$nodePath\node.exe"){
 Write-Host ""
 Write-Host "Installing pnpm..." -ForegroundColor Yellow
 
-# Check common pnpm locations
 $pnpmPaths=@(
     "$env:LOCALAPPDATA\pnpm\pnpm.exe",
     "$env:APPDATA\npm\pnpm.cmd",
@@ -63,14 +61,13 @@ foreach($p in $pnpmPaths){
 
 if($pnpmFound){
     $ver=pnpm --version
-    Write-Host "Found: pnpm $ver at $pnpmFound" -ForegroundColor Green
+    Write-Host "Found: pnpm $ver" -ForegroundColor Green
 }else{
     Write-Host "Installing pnpm..." -ForegroundColor Gray
     
-    # Install via npm
-    & "$npmPath" install -g pnpm
+    $npmCmd="$nodePath\npm.cmd"
+    & $npmCmd install -g pnpm
     
-    # Find and add pnpm to PATH
     $pnpmDir="$env:LOCALAPPDATA\pnpm"
     if(Test-Path "$pnpmDir\pnpm.exe"){
         $env:Path="$pnpmDir;$env:Path"
@@ -96,10 +93,19 @@ if(Test-Path $wExe){
     Write-Host "Downloading whisper.cpp..." -ForegroundColor Gray
     
     New-Item -ItemType Directory -Path $wDir -Force | Out-Null
-    $url="https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-blas-bin-x64.zip"
+    
+    # Use v1.7.4 which has Windows binaries
+    $url="https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-v1.7.4-bin-x64.zip"
     $zip="$env:TEMP\whisper.zip"
     
-    Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+    try{
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop
+    }catch{
+        # Fallback to v1.7.3 if v1.7.4 fails
+        $url="https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.3/whisper-v1.7.3-bin-x64.zip"
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+    }
+    
     Expand-Archive -Path $zip -DestinationPath $wDir -Force
     Remove-Item $zip -ErrorAction SilentlyContinue
     
@@ -127,10 +133,19 @@ if(Test-Path $lExe){
     Write-Host "Downloading llama.cpp..." -ForegroundColor Gray
     
     New-Item -ItemType Directory -Path $lDir -Force | Out-Null
+    
+    # Use a known working build
     $url="https://github.com/ggerganov/llama.cpp/releases/download/b4528/llama-b4528-bin-win-avx2-x64.zip"
     $zip="$env:TEMP\llama.zip"
     
-    Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+    try{
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop
+    }catch{
+        # Fallback to newer build
+        $url="https://github.com/ggerganov/llama.cpp/releases/download/b4530/llama-b4530-bin-win-avx2-x64.zip"
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+    }
+    
     Expand-Archive -Path $zip -DestinationPath $lDir -Force
     Remove-Item $zip -ErrorAction SilentlyContinue
     
