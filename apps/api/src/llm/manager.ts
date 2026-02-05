@@ -8,13 +8,15 @@ import crypto from 'crypto';
 const DATA_DIR = process.env.DATA_DIR || './data';
 const LLM_MODELS_DIR = process.env.LLM_MODELS_DIR || path.join(DATA_DIR, 'models');
 
-// Default model configuration - using Q4_K_M quantized model for CPU
+// Default model configuration - using Q3_K_M quantized model for CPU
+// Note: q4_k_m is now split into 2 parts on HuggingFace due to size limits
+// Override with LLM_MODEL_NAME, LLM_MODEL_URL, LLM_MODEL_SIZE env vars
 export const DEFAULT_LLM_MODEL = {
-  name: 'qwen2.5-7b-instruct-q4_k_m.gguf',
-  url: 'https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf',
-  size: 4368438944, // ~4.4GB
+  name: process.env.LLM_MODEL_NAME || 'qwen2.5-7b-instruct-q3_k_m.gguf',
+  url: process.env.LLM_MODEL_URL || 'https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q3_k_m.gguf',
+  size: parseInt(process.env.LLM_MODEL_SIZE || '3956969472', 10), // ~3.8GB
   sha256: null, // Can be added later for verification
-  contextSize: 8192,
+  contextSize: parseInt(process.env.LLM_CONTEXT_SIZE || '8192', 10),
 };
 
 export interface LLMModelConfig {
