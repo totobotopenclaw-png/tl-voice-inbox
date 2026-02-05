@@ -38,6 +38,13 @@ function rowToJob(row: JobRow): Job {
 }
 
 /**
+ * Format a date to SQLite datetime string (YYYY-MM-DD HH:MM:SS)
+ */
+function toSQLiteDateTime(date: Date): string {
+  return date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+}
+
+/**
  * Enqueue a new job
  */
 export function enqueue(
@@ -47,8 +54,9 @@ export function enqueue(
   options: { maxAttempts?: number; runAt?: Date } = {}
 ): Job {
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const runAt = options.runAt?.toISOString() || now;
+  const now = new Date();
+  const nowStr = toSQLiteDateTime(now);
+  const runAt = options.runAt ? toSQLiteDateTime(options.runAt) : nowStr;
   const maxAttempts = options.maxAttempts || 3;
 
   const stmt = db.prepare(`
@@ -56,7 +64,7 @@ export function enqueue(
     VALUES (?, ?, ?, 'pending', ?, 0, ?, ?, ?, ?)
   `);
 
-  stmt.run(id, eventId, type, JSON.stringify(payload), maxAttempts, runAt, now, now);
+  stmt.run(id, eventId, type, JSON.stringify(payload), maxAttempts, runAt, nowStr, nowStr);
 
   return {
     id,
@@ -97,18 +105,18 @@ export function claim(): Job | null {
     }
 
     // Immediately mark as running with row-level locking via UPDATE
-    const now = new Date().toISOString();
+    const nowStr = toSQLiteDateTime(new Date());
     const updateStmt = db.prepare(`
-      UPDATE jobs 
-      SET status = 'running', 
-          started_at = ?, 
+      UPDATE jobs
+      SET status = 'running',
+          started_at = ?,
           attempts = attempts + 1,
           updated_at = ?
-      WHERE id = ? 
+      WHERE id = ?
         AND status IN ('pending', 'retry')
     `);
 
-    const result = updateStmt.run(now, now, row.id);
+    const result = updateStmt.run(nowStr, nowStr, row.id);
 
     // If no rows updated, another worker claimed it
     if (result.changes === 0) {
@@ -127,10 +135,10 @@ export function claim(): Job | null {
  * Mark a job as completed
  */
 export function complete(jobId: string, result?: Record<string, unknown>): void {
-  const now = new Date().toISOString();
-  
+  const now = toSQLiteDateTime(new Date());
+
   db.prepare(`
-    UPDATE jobs 
+    UPDATE jobs
     SET status = 'completed',
         completed_at = ?,
         error_message = NULL,
@@ -144,28 +152,28 @@ export function complete(jobId: string, result?: Record<string, unknown>): void 
  * Will set to 'retry' if attempts < max_attempts, otherwise 'failed'
  */
 export function fail(jobId: string, error: string, retryable: boolean = true): void {
-  const now = new Date().toISOString();
-  
+  const now = toSQLiteDateTime(new Date());
+
   // Get current attempts and max_attempts
-  const row = db.prepare('SELECT attempts, max_attempts FROM jobs WHERE id = ?').get(jobId) as 
+  const row = db.prepare('SELECT attempts, max_attempts FROM jobs WHERE id = ?').get(jobId) as
     | { attempts: number; max_attempts: number }
     | undefined;
-  
+
   if (!row) {
     throw new Error(`Job ${jobId} not found`);
   }
 
   const shouldRetry = retryable && row.attempts < row.max_attempts;
   const newStatus: JobStatus = shouldRetry ? 'retry' : 'failed';
-  
+
   // Calculate next run time with exponential backoff (2^attempts minutes)
   const backoffMinutes = Math.pow(2, row.attempts);
-  const runAt = shouldRetry 
-    ? new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString()
+  const runAt = shouldRetry
+    ? toSQLiteDateTime(new Date(Date.now() + backoffMinutes * 60 * 1000))
     : null;
 
   db.prepare(`
-    UPDATE jobs 
+    UPDATE jobs
     SET status = ?,
         error_message = ?,
         run_at = COALESCE(?, run_at),
