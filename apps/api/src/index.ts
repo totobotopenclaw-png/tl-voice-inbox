@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import { db } from './db/connection.js';
+import { migrate } from './db/migrate.js';
 import { searchRoutes, healthRoutes, adminRoutes, llmAdminRoutes, eventsRoutes, epicsRoutes } from './routes/index.js';
 import { getWorkerRunner } from './queue/runner.js';
 import { sttWorker } from './workers/stt/index.js';
@@ -103,6 +104,11 @@ process.on('SIGTERM', () => closeGracefully('SIGTERM'));
 
 // Start server
 try {
+  // Run migrations first
+  console.log('[Server] Running database migrations...');
+  migrate();
+  console.log('[Server] Migrations complete');
+
   // Initialize workers before starting server
   await initializeWorkers();
   
