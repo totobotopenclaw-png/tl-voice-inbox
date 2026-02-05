@@ -142,75 +142,86 @@ class LLMManager {
     console.log(`[LLMManager] Destination: ${modelPath}`);
 
     return new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(tempPath);
       let downloaded = 0;
+      let file: fs.WriteStream | null = null;
 
-      https.get(url, { 
-        headers: {
-          'User-Agent': 'tl-voice-inbox/1.0'
-        }
-      }, (response) => {
-        if (response.statusCode === 302 || response.statusCode === 301) {
-          // Follow redirect
-          const redirectUrl = response.headers.location;
-          if (redirectUrl) {
-            file.close();
-            fs.unlinkSync(tempPath);
-            
-            https.get(redirectUrl, { 
-              headers: {
-                'User-Agent': 'tl-voice-inbox/1.0'
+      function doDownload(downloadUrl: string): void {
+        file = fs.createWriteStream(tempPath);
+        downloaded = 0;
+
+        https.get(downloadUrl, {
+          headers: {
+            'User-Agent': 'tl-voice-inbox/1.0'
+          }
+        }, (response) => {
+          // Handle redirects
+          if (response.statusCode === 302 || response.statusCode === 301) {
+            const redirectUrl = response.headers.location;
+            if (redirectUrl) {
+              file?.close();
+              if (fs.existsSync(tempPath)) {
+                fs.unlinkSync(tempPath);
               }
-            }, (redirectResponse) => {
-              handleResponse(redirectResponse);
-            }).on('error', (err) => {
-              file.close();
+              doDownload(redirectUrl);
+              return;
+            }
+          }
+
+          if (response.statusCode !== 200) {
+            file?.close();
+            if (fs.existsSync(tempPath)) {
               fs.unlinkSync(tempPath);
-              reject(err);
-            });
+            }
+            reject(new Error(`HTTP ${response.statusCode}`));
             return;
           }
-        }
 
-        handleResponse(response);
-      }).on('error', (err) => {
-        file.close();
-        if (fs.existsSync(tempPath)) {
-          fs.unlinkSync(tempPath);
-        }
-        reject(err);
-      });
+          const total = parseInt(response.headers['content-length'] || '0', 10);
 
-      function handleResponse(response: import('http').IncomingMessage): void {
-        const total = parseInt(response.headers['content-length'] || '0', 10);
-        
-        response.on('data', (chunk: Buffer) => {
-          downloaded += chunk.length;
-          if (onProgress) {
-            onProgress(downloaded, total);
+          response.on('data', (chunk: Buffer) => {
+            downloaded += chunk.length;
+            if (onProgress) {
+              onProgress(downloaded, total);
+            }
+          });
+
+          response.pipe(file!);
+
+          file!.on('finish', () => {
+            file?.close();
+
+            // Move temp file to final location
+            fs.renameSync(tempPath, modelPath);
+
+            console.log(`[LLMManager] Download complete: ${name}`);
+
+            const info = {
+              name,
+              path: modelPath,
+              exists: true,
+              size: downloaded,
+              isValid: true,
+            };
+            resolve(info);
+          });
+
+          file!.on('error', (err) => {
+            file?.close();
+            if (fs.existsSync(tempPath)) {
+              fs.unlinkSync(tempPath);
+            }
+            reject(err);
+          });
+        }).on('error', (err) => {
+          file?.close();
+          if (fs.existsSync(tempPath)) {
+            fs.unlinkSync(tempPath);
           }
-        });
-
-        response.pipe(file);
-
-        file.on('finish', () => {
-          file.close();
-          
-          // Move temp file to final location
-          fs.renameSync(tempPath, modelPath);
-          
-          console.log(`[LLMManager] Download complete: ${name}`);
-          
-          const info = {
-            name,
-            path: modelPath,
-            exists: true,
-            size: downloaded,
-            isValid: true,
-          };
-          resolve(info);
+          reject(err);
         });
       }
+
+      doDownload(url);
     });
   }
 
@@ -227,7 +238,13 @@ class LLMManager {
     }
 
     console.log(`[LLMManager] Model not found, downloading...`);
-    const info = await this.downloadModel();
+    const info = await this.downloadModel(DEFAULT_LLM_MODEL.url, undefined, (downloaded, total) => {
+      const percent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+      const mb = (downloaded / 1024 / 1024).toFixed(0);
+      const totalMb = total > 0 ? (total / 1024 / 1024).toFixed(0) : '?';
+      process.stdout.write(`\r[LLMManager] Progress: ${percent}% (${mb}MB / ${totalMb}MB)`);
+    });
+    process.stdout.write('\n');
     return info.path;
   }
 
