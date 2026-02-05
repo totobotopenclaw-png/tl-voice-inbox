@@ -97,6 +97,7 @@ if(Test-Path $wExe){
     # Try multiple URL patterns for Windows binaries
     # Newer releases moved to ggml-org and use different naming
     $urls=@(
+        "https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.3/whisper-bin-x64.zip",
         "https://github.com/ggml-org/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip",
         "https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip",
         "https://github.com/ggml-org/whisper.cpp/releases/download/v1.7.3/whisper-bin-x64.zip",
