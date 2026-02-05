@@ -181,6 +181,44 @@ function Show-Status {
     }
 }
 
+function Save-ErrorSnapshot {
+    param([string]$Reason)
+    
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $snapshotFile = "logs/error-snapshot-$timestamp.txt"
+    
+    $content = @"
+═══════════════════════════════════════════════════════════
+ERROR SNAPSHOT - $timestamp
+Reason: $Reason
+═══════════════════════════════════════════════════════════
+
+SYSTEM INFO:
+Time: $(Get-Date)
+Hostname: $env:COMPUTERNAME
+Node Version: $(node --version 2>$null || 'N/A')
+
+RECENT WATCHDOG LOGS (last 30 lines):
+$(Get-Content logs/watchdog.log -Tail 30 -ErrorAction SilentlyContinue | Out-String)
+
+HEALTH STATUS:
+$(try { Invoke-RestMethod "http://localhost:3000/api/health" -TimeoutSec 3 | ConvertTo-Json -Depth 3 } catch { "Health check failed: $_" })
+
+QUEUE STATUS:
+$(try { Invoke-RestMethod "http://localhost:3000/api/admin/queue" -TimeoutSec 3 | ConvertTo-Json -Depth 3 } catch { "Queue check failed: $_" })
+
+RUNNING PROCESSES:
+$(Get-Process -Name "node","whisper-cli","llama-server" -ErrorAction SilentlyContinue | Select-Object Name, Id | Format-Table -AutoSize | Out-String)
+
+═══════════════════════════════════════════════════════════
+SHARE THIS FILE WHEN ASKING FOR HELP
+═══════════════════════════════════════════════════════════
+"@
+    
+    $content | Out-File -FilePath $snapshotFile -Encoding UTF8
+    Write-Log "Error snapshot saved to: $snapshotFile" "ERROR"
+}
+
 # Main
 Write-Log "=== TL Voice Inbox Watchdog Started ===" "INFO"
 Write-Log "Mode: $(if ($DevMode) { 'Development (auto-rebuild)' } else { 'Production' })" "INFO"
@@ -210,6 +248,7 @@ while ($Script:Running) {
     # Check if process is still running
     if ($Script:ServerProcess.HasExited) {
         Write-Log "Server process exited unexpectedly (code: $($Script:ServerProcess.ExitCode))" "ERROR"
+        Save-ErrorSnapshot "Server process crashed"
         Restart-Server
         continue
     }
@@ -217,6 +256,7 @@ while ($Script:Running) {
     # Check health endpoint
     if (-not (Test-Health)) {
         Write-Log "Health check failed" "WARN"
+        Save-ErrorSnapshot "Health check failed"
         Restart-Server
         continue
     }
