@@ -128,7 +128,12 @@ export function useEventDetail(eventId: string | null) {
       }
 
       const data = await response.json();
-      setEvent(data);
+      setEvent({
+        ...data.event,
+        jobs: data.jobs,
+        candidates: data.candidates,
+        assignedEpic: data.assignedEpic,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
