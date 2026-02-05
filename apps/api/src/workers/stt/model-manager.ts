@@ -12,7 +12,7 @@ export const WHISPER_MODELS = {
   tiny: {
     name: 'ggml-tiny.bin',
     url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin',
-    size: 75555856, // ~75MB
+    size: 77691713, // ~74MB (updated 2025-02)
     // Note: Actual SHA would be from whisper.cpp releases
     sha256: null, // Skip verification for now, can be added later
   },
@@ -106,69 +106,80 @@ export async function downloadModel(
   console.log(`[ModelManager] Destination: ${modelPath}`);
 
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(tempPath);
     let downloaded = 0;
+    let file: fs.WriteStream | null = null;
 
-    https.get(model.url, { 
-      headers: {
-        'User-Agent': 'tl-voice-inbox/1.0'
-      }
-    }, (response) => {
-      if (response.statusCode === 302 || response.statusCode === 301) {
-        // Follow redirect
-        const redirectUrl = response.headers.location;
-        if (redirectUrl) {
-          file.close();
-          fs.unlinkSync(tempPath);
-          
-          https.get(redirectUrl, { 
-            headers: {
-              'User-Agent': 'tl-voice-inbox/1.0'
+    function doDownload(url: string): void {
+      file = fs.createWriteStream(tempPath);
+      downloaded = 0;
+
+      https.get(url, {
+        headers: {
+          'User-Agent': 'tl-voice-inbox/1.0'
+        }
+      }, (response) => {
+        // Handle redirects
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            file?.close();
+            if (fs.existsSync(tempPath)) {
+              fs.unlinkSync(tempPath);
             }
-          }, (redirectResponse) => {
-            handleResponse(redirectResponse);
-          }).on('error', (err) => {
-            file.close();
+            doDownload(redirectUrl);
+            return;
+          }
+        }
+
+        if (response.statusCode !== 200) {
+          file?.close();
+          if (fs.existsSync(tempPath)) {
             fs.unlinkSync(tempPath);
-            reject(err);
-          });
+          }
+          reject(new Error(`HTTP ${response.statusCode}`));
           return;
         }
-      }
 
-      handleResponse(response);
-    }).on('error', (err) => {
-      file.close();
-      if (fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath);
-      }
-      reject(err);
-    });
+        const total = parseInt(response.headers['content-length'] || '0', 10);
 
-    function handleResponse(response: import('http').IncomingMessage): void {
-      const total = parseInt(response.headers['content-length'] || '0', 10);
-      
-      response.on('data', (chunk: Buffer) => {
-        downloaded += chunk.length;
-        if (onProgress) {
-          onProgress(downloaded, total);
+        response.on('data', (chunk: Buffer) => {
+          downloaded += chunk.length;
+          if (onProgress) {
+            onProgress(downloaded, total);
+          }
+        });
+
+        response.pipe(file!);
+
+        file!.on('finish', () => {
+          file?.close();
+
+          // Move temp file to final location
+          fs.renameSync(tempPath, modelPath);
+
+          console.log(`[ModelManager] Download complete: ${model.name}`);
+
+          const info = checkModel(modelSize);
+          resolve(info);
+        });
+
+        file!.on('error', (err) => {
+          file?.close();
+          if (fs.existsSync(tempPath)) {
+            fs.unlinkSync(tempPath);
+          }
+          reject(err);
+        });
+      }).on('error', (err) => {
+        file?.close();
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
         }
-      });
-
-      response.pipe(file);
-
-      file.on('finish', () => {
-        file.close();
-        
-        // Move temp file to final location
-        fs.renameSync(tempPath, modelPath);
-        
-        console.log(`[ModelManager] Download complete: ${model.name}`);
-        
-        const info = checkModel(modelSize);
-        resolve(info);
+        reject(err);
       });
     }
+
+    doDownload(model.url);
   });
 }
 
