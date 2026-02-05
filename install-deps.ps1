@@ -94,20 +94,49 @@ if(Test-Path $wExe){
     
     New-Item -ItemType Directory -Path $wDir -Force | Out-Null
     
-    # Use v1.7.4 which has Windows binaries
-    $url="https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-v1.7.4-bin-x64.zip"
-    $zip="$env:TEMP\whisper.zip"
+    # Try multiple URL patterns for Windows binaries
+    # Newer releases moved to ggml-org and use different naming
+    $urls=@(
+        "https://github.com/ggml-org/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip",
+        "https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip",
+        "https://github.com/ggml-org/whisper.cpp/releases/download/v1.7.3/whisper-bin-x64.zip",
+        "https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.3/whisper-bin-x64.zip"
+    )
     
-    try{
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop
-    }catch{
-        # Fallback to v1.7.3 if v1.7.4 fails
-        $url="https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.3/whisper-v1.7.3-bin-x64.zip"
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+    $zip="$env:TEMP\whisper.zip"
+    $downloaded=$false
+    
+    foreach($url in $urls){
+        try{
+            Write-Host "  Trying: $url" -ForegroundColor DarkGray
+            Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop -TimeoutSec 30
+            $downloaded=$true
+            Write-Host "  Downloaded from: $url" -ForegroundColor DarkGray
+            break
+        }catch{
+            Write-Host "  Failed, trying next..." -ForegroundColor DarkGray
+        }
+    }
+    
+    if(-not $downloaded){
+        Write-Host "ERROR: Could not download whisper.cpp binaries!" -ForegroundColor Red
+        Write-Host "" -ForegroundColor Red
+        Write-Host "Please manually install whisper.cpp:" -ForegroundColor Yellow
+        Write-Host "  1. Download from: https://github.com/ggml-org/whisper.cpp/releases" -ForegroundColor White
+        Write-Host "  2. Extract whisper-cli.exe to: $wDir" -ForegroundColor White
+        Write-Host "  3. Add $wDir to your PATH" -ForegroundColor White
+        Write-Host "" -ForegroundColor Yellow
+        throw "whisper.cpp download failed"
     }
     
     Expand-Archive -Path $zip -DestinationPath $wDir -Force
     Remove-Item $zip -ErrorAction SilentlyContinue
+    
+    # Rename main.exe to whisper-cli.exe if needed (older builds use main.exe)
+    if((Test-Path "$wDir\main.exe") -and -not (Test-Path $wExe)){
+        Rename-Item -Path "$wDir\main.exe" -NewName "whisper-cli.exe" -Force
+        Write-Host "  Renamed main.exe to whisper-cli.exe" -ForegroundColor DarkGray
+    }
     
     $env:Path="$wDir;$env:Path"
     $userPath=[Environment]::GetEnvironmentVariable("Path","User")
@@ -134,28 +163,43 @@ if(Test-Path $lExe){
     
     New-Item -ItemType Directory -Path $lDir -Force | Out-Null
     
-    # Use a known working build
-    $url="https://github.com/ggerganov/llama.cpp/releases/download/b4528/llama-b4528-bin-win-avx2-x64.zip"
+    # Try multiple URLs - repo moved to ggml-org and build numbers change
+    $urls=@(
+        "https://github.com/ggml-org/llama.cpp/releases/download/b4528/llama-b4528-bin-win-avx2-x64.zip",
+        "https://github.com/ggerganov/llama.cpp/releases/download/b4528/llama-b4528-bin-win-avx2-x64.zip",
+        "https://github.com/ggml-org/llama.cpp/releases/download/b4530/llama-b4530-bin-win-avx2-x64.zip"
+    )
+    
     $zip="$env:TEMP\llama.zip"
+    $downloaded=$false
     
-    try{
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop
-    }catch{
-        # Fallback to newer build
-        $url="https://github.com/ggerganov/llama.cpp/releases/download/b4530/llama-b4530-bin-win-avx2-x64.zip"
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+    foreach($url in $urls){
+        try{
+            Write-Host "  Trying: $url" -ForegroundColor DarkGray
+            Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop -TimeoutSec 30
+            $downloaded=$true
+            Write-Host "  Downloaded from: $url" -ForegroundColor DarkGray
+            break
+        }catch{
+            Write-Host "  Failed, trying next..." -ForegroundColor DarkGray
+        }
     }
     
-    Expand-Archive -Path $zip -DestinationPath $lDir -Force
-    Remove-Item $zip -ErrorAction SilentlyContinue
-    
-    $env:Path="$lDir;$env:Path"
-    $userPath=[Environment]::GetEnvironmentVariable("Path","User")
-    if($userPath -notlike "*$lDir*"){
-        [Environment]::SetEnvironmentVariable("Path","$userPath;$lDir","User")
+    if(-not $downloaded){
+        Write-Host "WARNING: Could not download llama.cpp binaries." -ForegroundColor Yellow
+        Write-Host "You may need to manually install from: https://github.com/ggml-org/llama.cpp/releases" -ForegroundColor Yellow
+    }else{
+        Expand-Archive -Path $zip -DestinationPath $lDir -Force
+        Remove-Item $zip -ErrorAction SilentlyContinue
+        
+        $env:Path="$lDir;$env:Path"
+        $userPath=[Environment]::GetEnvironmentVariable("Path","User")
+        if($userPath -notlike "*$lDir*"){
+            [Environment]::SetEnvironmentVariable("Path","$userPath;$lDir","User")
+        }
+        
+        Write-Host "OK: llama.cpp installed" -ForegroundColor Green
     }
-    
-    Write-Host "OK: llama.cpp installed" -ForegroundColor Green
 }
 
 # ============================================
