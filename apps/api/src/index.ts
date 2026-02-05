@@ -64,7 +64,16 @@ async function initializeWorkers(): Promise<void> {
     console.log('[Server] LLM server started');
   } catch (err) {
     console.error('[Server] Failed to start LLM server:', err);
-    console.log('[Server] Continuing without LLM - extraction will fail until LLM is available');
+    console.log('[Server] Retrying LLM startup with longer timeout...');
+    // Retry once more - sometimes the LLM just needs more time
+    try {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      await llmManager.start();
+      console.log('[Server] LLM server started on retry');
+    } catch (retryErr) {
+      console.error('[Server] Failed to start LLM server on retry:', retryErr);
+      console.log('[Server] Continuing without LLM - extraction will fail until LLM is available');
+    }
   }
   
   // Register workers with runner

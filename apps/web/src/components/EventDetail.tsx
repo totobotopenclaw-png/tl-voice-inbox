@@ -22,7 +22,7 @@ interface EventDetailPanelProps {
   onClose: () => void;
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
   queued: { 
     label: 'Queued', 
     color: 'text-slate-400', 
@@ -68,6 +68,12 @@ const statusConfig = {
   error: { 
     label: 'Error', 
     color: 'text-red-400', 
+    bgColor: 'bg-red-950',
+    icon: AlertCircle 
+  },
+  failed: { 
+    label: 'Failed', 
+    color: 'text-red-500', 
     bgColor: 'bg-red-950',
     icon: AlertCircle 
   },
@@ -137,7 +143,12 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
     );
   }
 
-  const config = statusConfig[event.status] || statusConfig.error;
+  const config = statusConfig[event.status] || statusConfig.error || { 
+    label: 'Unknown', 
+    color: 'text-slate-400', 
+    bgColor: 'bg-slate-900',
+    icon: AlertCircle 
+  };
   const StatusIcon = config.icon;
 
   return (

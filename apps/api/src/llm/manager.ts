@@ -324,7 +324,7 @@ class LLMManager {
       });
 
       // Wait for server to be ready
-      await this.waitForReady(60000); // 60 second timeout
+      await this.waitForReady(120000); // 120 second timeout
 
       // Start health check
       this.startHealthCheck();

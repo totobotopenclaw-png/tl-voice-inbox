@@ -39,8 +39,16 @@ export class ExtractWorker {
     }
 
     try {
-      // Step 1: Check LLM server health
-      if (!llmManager.isServerHealthy()) {
+      // Step 1: Check LLM server health (with dynamic check as fallback)
+      let isHealthy = llmManager.isServerHealthy();
+      if (!isHealthy) {
+        // Try dynamic health check as fallback
+        isHealthy = await llmManager.checkHealth();
+        if (isHealthy) {
+          console.log('[ExtractWorker] LLM server healthy (dynamic check)');
+        }
+      }
+      if (!isHealthy) {
         console.log('[ExtractWorker] LLM server not healthy, retrying later');
         return {
           success: false,
@@ -391,9 +399,13 @@ export class ExtractWorker {
           { role: 'user', content: attempt === 1 ? userPrompt : buildRetryPrompt(userPrompt, lastResponse || '', lastError || '') },
         ];
 
+        // DEBUG: Log the prompt being sent
+        console.log(`[ExtractWorker] Sending prompt (${messages[1].content.length} chars)`);
+
         const response = await llmManager.chatCompletions(messages, {
           temperature: 0.1,
           maxTokens: 4096,
+          responseFormat: { type: 'json_object' },
         }) as { choices?: Array<{ message?: { content?: string } }> };
 
         const content = response.choices?.[0]?.message?.content;
@@ -402,6 +414,12 @@ export class ExtractWorker {
           continue;
         }
 
+        // DEBUG: Log full raw response with clear markers
+        console.log('[ExtractWorker] === RAW LLM RESPONSE START ===');
+        console.log(content);
+        console.log('[ExtractWorker] === RAW LLM RESPONSE END ===');
+        console.log(`[ExtractWorker] Response length: ${content.length} chars`);
+
         lastResponse = content;
 
         // Parse JSON from response (handle markdown code blocks)
@@ -409,15 +427,26 @@ export class ExtractWorker {
         const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (codeBlockMatch) {
           jsonStr = codeBlockMatch[1].trim();
+          console.log(`[ExtractWorker] Extracted JSON from code block (${jsonStr.length} chars)`);
+        }
+
+        // Try to repair truncated JSON
+        const originalJsonStr = jsonStr;
+        jsonStr = this.repairJson(jsonStr);
+        if (jsonStr !== originalJsonStr) {
+          console.log(`[ExtractWorker] JSON was repaired`);
         }
 
         // Parse JSON
         let parsed: unknown;
         try {
           parsed = JSON.parse(jsonStr);
+          console.log(`[ExtractWorker] JSON parsed successfully`);
         } catch (e) {
           lastError = `JSON parse error: ${e instanceof Error ? e.message : String(e)}`;
           console.warn(`[ExtractWorker] Attempt ${attempt} JSON parse failed:`, lastError);
+          console.warn(`[ExtractWorker] JSON content (first 1000 chars):`, jsonStr.substring(0, 1000));
+          console.warn(`[ExtractWorker] JSON content (last 500 chars):`, jsonStr.slice(-500));
           continue;
         }
 
@@ -441,6 +470,249 @@ export class ExtractWorker {
       success: false, 
       error: `Failed after ${MAX_EXTRACTION_ATTEMPTS} attempts. Last error: ${lastError}` 
     };
+  }
+
+  /**
+   * Attempt to repair truncated/malformed JSON from LLM
+   * Handles truncation mid-token, incomplete strings, missing braces, etc.
+   */
+  private repairJson(jsonStr: string): string {
+    let repaired = jsonStr.trim();
+
+    // Remove any text before the first {
+    const firstBrace = repaired.indexOf('{');
+    if (firstBrace > 0) {
+      repaired = repaired.slice(firstBrace);
+    }
+
+    // Remove any text after the last } (but be careful about strings)
+    // Only trim if the last } is not inside a string
+    const lastBrace = this.findLastUnquotedBrace(repaired);
+    if (lastBrace !== -1 && lastBrace < repaired.length - 1) {
+      repaired = repaired.slice(0, lastBrace + 1);
+    }
+
+    // Fix incomplete strings (unclosed quotes)
+    repaired = this.fixIncompleteStrings(repaired);
+
+    // Balance braces - count opening and closing
+    let openBraces = 0;
+    let closeBraces = 0;
+    for (const char of repaired) {
+      if (char === '{') openBraces++;
+      if (char === '}') closeBraces++;
+    }
+
+    // Add missing closing braces
+    while (closeBraces < openBraces) {
+      repaired += '}';
+      closeBraces++;
+    }
+
+    // Balance brackets for arrays
+    let openBrackets = 0;
+    let closeBrackets = 0;
+    for (const char of repaired) {
+      if (char === '[') openBrackets++;
+      if (char === ']') closeBrackets++;
+    }
+    while (closeBrackets < openBrackets) {
+      // Find the last unquoted [ and close it appropriately
+      const lastOpen = this.findLastUnquotedBracket(repaired);
+      if (lastOpen !== -1) {
+        // Determine context: are we inside an object or at root?
+        const context = this.getContextAtPosition(repaired, lastOpen);
+        if (context === 'object') {
+          // Close array then close object
+          repaired = repaired.slice(0, repaired.length - (openBraces - closeBraces)) + ']}' + '}'.repeat(Math.max(0, openBraces - closeBraces - 1));
+        } else {
+          repaired += ']';
+        }
+      } else {
+        repaired += ']';
+      }
+      closeBrackets++;
+    }
+
+    // Fix trailing commas before closing braces/brackets
+    repaired = repaired.replace(/,\s*([}\]])/g, '$1');
+
+    // Handle truncated values - if ends mid-token, close the value properly
+    repaired = this.fixTruncatedValues(repaired);
+
+    return repaired;
+  }
+
+  /**
+   * Find the last } that is not inside a string
+   */
+  private findLastUnquotedBrace(str: string): number {
+    let inString = false;
+    let escapeNext = false;
+    let lastBrace = -1;
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"' && !inString) {
+        inString = true;
+      } else if (char === '"' && inString) {
+        inString = false;
+      } else if (char === '}' && !inString) {
+        lastBrace = i;
+      }
+    }
+    return lastBrace;
+  }
+
+  /**
+   * Find the last [ that is not inside a string
+   */
+  private findLastUnquotedBracket(str: string): number {
+    let inString = false;
+    let escapeNext = false;
+
+    for (let i = str.length - 1; i >= 0; i--) {
+      const char = str[i];
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"' && !inString) {
+        inString = true;
+      } else if (char === '"' && inString) {
+        inString = false;
+      } else if (char === '[' && !inString) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Get context (object/array) at a given position
+   */
+  private getContextAtPosition(str: string, pos: number): 'object' | 'array' | 'unknown' {
+    let braceDepth = 0;
+    let bracketDepth = 0;
+    let inString = false;
+    let escapeNext = false;
+
+    for (let i = 0; i < pos && i < str.length; i++) {
+      const char = str[i];
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"' && !inString) {
+        inString = true;
+      } else if (char === '"' && inString) {
+        inString = false;
+      } else if (!inString) {
+        if (char === '{') braceDepth++;
+        if (char === '}') braceDepth--;
+        if (char === '[') bracketDepth++;
+        if (char === ']') bracketDepth--;
+      }
+    }
+
+    if (braceDepth > 0) return 'object';
+    if (bracketDepth > 0) return 'array';
+    return 'unknown';
+  }
+
+  /**
+   * Fix incomplete/unclosed strings in JSON
+   */
+  private fixIncompleteStrings(str: string): string {
+    let inString = false;
+    let escapeNext = false;
+    let lastQuoteStart = -1;
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"') {
+        if (!inString) {
+          inString = true;
+          lastQuoteStart = i;
+        } else {
+          inString = false;
+        }
+      }
+    }
+
+    // If still in a string at the end, close it
+    if (inString) {
+      // Check if we're mid-escape
+      if (str[str.length - 1] === '\\') {
+        // Remove the trailing backslash and close the string
+        str = str.slice(0, -1) + '"';
+      } else {
+        str += '"';
+      }
+    }
+
+    return str;
+  }
+
+  /**
+   * Fix truncated values that end mid-token
+   * e.g., "labels": ["Acti  -> "labels": []
+   */
+  private fixTruncatedValues(str: string): string {
+    // If the string ends with a partial token inside quotes, close it
+    // Pattern: "key": "partial  or  "key": ["partial  or  "key": "value", "partial
+    const partialStringMatch = str.match(/"[^"]*$/);
+    if (partialStringMatch) {
+      // There's an unclosed string at the end
+      // Find the start of this string and determine context
+      const lastQuote = str.lastIndexOf('"', str.length - 2);
+      if (lastQuote !== -1) {
+        const beforeQuote = str.slice(0, lastQuote).trim();
+        // Check if this is a key or a value
+        if (beforeQuote.endsWith(':') || beforeQuote.endsWith('[') || beforeQuote.endsWith(',')) {
+          // It's a value string that's incomplete - remove the partial content
+          str = str.slice(0, lastQuote);
+          // Add appropriate closing based on context
+          if (beforeQuote.endsWith('[')) {
+            str += ']';
+          }
+        }
+      }
+    }
+
+    // Handle case where we're mid-array item without starting quote
+    // e.g., "labels": [Acti  -> "labels": []
+    const partialArrayItem = str.match(/:\s*\[\s*([a-zA-Z_]+)$/);
+    if (partialArrayItem) {
+      // Remove the partial token and close the array
+      str = str.replace(/:\s*\[\s*[a-zA-Z_]+$/, ': []');
+    }
+
+    return str;
   }
 
   /**

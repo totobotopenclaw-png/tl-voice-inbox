@@ -20,7 +20,7 @@ interface EventsTimelineProps {
   selectedEventId?: string | null;
 }
 
-const statusConfig: Record<Event['status'], { label: string; color: string; icon: React.ReactNode }> = {
+const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   queued: { 
     label: 'Queued', 
     color: 'text-slate-400', 
@@ -61,6 +61,11 @@ const statusConfig: Record<Event['status'], { label: string; color: string; icon
     color: 'text-red-400', 
     icon: <AlertCircle size={14} /> 
   },
+  failed: {
+    label: 'Failed',
+    color: 'text-red-500',
+    icon: <AlertCircle size={14} />
+  },
 };
 
 function EventItem({ 
@@ -72,7 +77,16 @@ function EventItem({
   isSelected: boolean;
   onClick: () => void;
 }) {
-  const config = statusConfig[event.status];
+  // Defensive: ensure we always have a valid config
+  let config = statusConfig[event.status];
+  if (!config) {
+    console.warn(`Unknown status: ${event.status}, using fallback`);
+    config = { 
+      label: event.status || 'Unknown', 
+      color: 'text-slate-400', 
+      icon: <Clock size={14} /> 
+    };
+  }
   
   return (
     <button

@@ -14,8 +14,10 @@ interface FtsRow {
  * Used for building LLM context
  */
 export function searchKnowledge(query: string, limit: number = 5): Array<{ id: string; title: string; type: string; content: string }> {
+  // Escape FTS5 special characters: " [ ] ( ) * ^ { } : - , . / etc
   const sanitizedQuery = query
-    .replace(/"/g, '""')
+    .replace(/"/g, '""')  // Escape double quotes
+    .replace(/[\[\](){}:^*,./;!?@#$%&=+~`|\\-]/g, ' ')  // Replace special chars with space
     .trim();
 
   if (!sanitizedQuery) {
@@ -65,6 +67,7 @@ export const searchRepository = {
     // Sanitize query for FTS5 MATCH (escape special characters)
     const sanitizedQuery = query
       .replace(/"/g, '""') // Escape quotes
+      .replace(/[\[\](){}:^*,./;!?@#$%&=+~`|\\-]/g, ' ') // Replace FTS5 special chars with space
       .trim();
 
     if (!sanitizedQuery) {
@@ -108,7 +111,10 @@ export const searchRepository = {
    * Full-text search with snippet highlighting
    */
   searchWithSnippets(query: string, limit: number = 20): Array<SearchResult & { snippet: string }> {
-    const sanitizedQuery = query.replace(/"/g, '""').trim();
+    const sanitizedQuery = query
+      .replace(/"/g, '""')
+      .replace(/[\[\](){}:^*,./;!?@#$%&=+~`|\\-]/g, ' ')
+      .trim();
 
     if (!sanitizedQuery) {
       return [];

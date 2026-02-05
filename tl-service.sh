@@ -11,8 +11,9 @@ PID_FILE="$PROJECT_DIR/.server.pid"
 LOG_FILE="$PROJECT_DIR/logs/api.log"
 PID_WATCHDOG="$PROJECT_DIR/.watchdog.pid"
 
-export WHISPER_CLI_PATH="${WHISPER_CLI_PATH:-$DEPS_DIR/whisper-cli}"
-export PATH="$DEPS_DIR:$PATH"
+export WHISPER_CLI_PATH="${WHISPER_CLI_PATH:-$HOME/.local/bin/whisper-cli}"
+export LLAMA_SERVER_PATH="${LLAMA_SERVER_PATH:-/home/alpogue/.local/bin/llama-server}"
+export PATH="$HOME/.local/bin:$DEPS_DIR:$PATH"
 
 cd "$PROJECT_DIR"
 

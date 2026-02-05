@@ -119,7 +119,20 @@ export const epicsRepository = {
    * Find candidate epics for an event using FTS5 ranking
    */
   findCandidates(query: string, limit: number = 3): Array<{ epic: Epic; score: number }> {
-    const sanitized = query.replace(/"/g, '""').trim();
+    // Escape FTS5 special characters: " [ ] ( ) * ^ { } : - , . / etc
+    // Wrap in double quotes for phrase matching to avoid syntax errors
+    const sanitized = query
+      .replace(/"/g, '""')  // Escape double quotes
+      .replace(/[\[\](){}:^*,./;!?@#$%&=+~`|\\-]/g, ' ')  // Replace special chars with space
+      .trim();
+    
+    // If empty after sanitization, return empty results
+    if (!sanitized) {
+      return [];
+    }
+    
+    // Wrap in double quotes for safe phrase matching
+    const safeQuery = `"${sanitized}"`
     
     const stmt = db.prepare(`
       SELECT 
@@ -132,7 +145,7 @@ export const epicsRepository = {
       LIMIT ?
     `);
     
-    const rows = stmt.all(sanitized, limit) as Array<Epic & { score: number }>;
+    const rows = stmt.all(safeQuery, limit) as Array<Epic & { score: number }>;
     
     return rows.map(row => {
       const { score, ...epic } = row;

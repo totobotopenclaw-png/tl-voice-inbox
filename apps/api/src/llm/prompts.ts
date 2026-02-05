@@ -45,47 +45,20 @@ export interface ExtractionContext {
   }>;
 }
 
-// JSON schema for the extraction output (included in prompt)
+// JSON schema for the extraction output (compact version to reduce truncation)
 const JSON_SCHEMA = `{
-  "labels": ["EpicUpdate", "KnowledgeNote", "ActionItem", ...],
-  "resolved_epic": {"epic_id": "uuid-or-null", "confidence": 0.0-1.0},
-  "epic_mentions": [{"name": "string", "confidence": 0.0-1.0}],
-  "new_actions": [
-    {
-      "type": "follow_up|deadline|email",
-      "title": "string (required, max 500 chars)",
-      "priority": "P0|P1|P2",
-      "due_at": "ISO 8601 datetime or null",
-      "mentions": ["person names mentioned"],
-      "body": "additional context"
-    }
-  ],
-  "new_deadlines": [
-    {
-      "title": "string",
-      "priority": "P0|P1",
-      "due_at": "ISO 8601 datetime (required)"
-    }
-  ],
-  "blockers": [{"description": "string", "status": "open"}],
-  "dependencies": [{"description": "string", "status": "open"}],
-  "issues": [{"description": "string", "status": "open"}],
-  "knowledge_items": [
-    {
-      "title": "string",
-      "kind": "tech|decision|process",
-      "tags": ["tag1", "tag2"],
-      "body_md": "markdown content"
-    }
-  ],
-  "email_drafts": [
-    {
-      "subject": "email subject line",
-      "body": "email body content"
-    }
-  ],
+  "labels": ["EpicUpdate","KnowledgeNote","ActionItem","Decision","Blocker","Issue"],
+  "resolved_epic": {"epic_id":"uuid-or-null","confidence":0.8},
+  "epic_mentions": [{"name":"string","confidence":0.5}],
+  "new_actions": [{"type":"follow_up|deadline|email","title":"string","priority":"P0|P1|P2","due_at":"ISO8601-or-null","mentions":["string"],"body":"string"}],
+  "new_deadlines": [{"title":"string","priority":"P0|P1","due_at":"ISO8601"}],
+  "blockers": [{"description":"string"}],
+  "dependencies": [{"description":"string"}],
+  "issues": [{"description":"string"}],
+  "knowledge_items": [{"title":"string","kind":"tech|decision|process","tags":["string"],"body_md":"string"}],
+  "email_drafts": [{"subject":"string","body":"string"}],
   "needs_review": false,
-  "evidence_snippets": ["relevant quote from transcript"]
+  "evidence_snippets": ["string"]
 }`;
 
 // System prompt for extraction
@@ -93,13 +66,18 @@ const SYSTEM_PROMPT = `You are a structured data extractor for a Tech Lead's voi
 
 Your task is to analyze voice transcripts and extract structured project information.
 
-RULES:
-1. Output ONLY valid JSON matching the provided schema
-2. Spanish input is expected - English technical terms may appear mixed in
-3. Be conservative - use "needs_review": true if uncertain about epic assignment
-4. P0 = urgent/critical, P1 = important, P2 = normal priority
-5. Convert relative dates to absolute ISO 8601 datetimes (assume current year 2026)
-6. Evidence snippets should be exact quotes from the transcript
+CRITICAL RULES:
+1. Output MUST be valid, parseable JSON - NO markdown, NO code blocks, NO explanations
+2. Output ONLY the JSON object starting with { and ending with }
+3. All string values must use double quotes
+4. All arrays must be properly closed with ]
+5. All objects must be properly closed with }
+6. No trailing commas allowed
+7. Spanish input is expected - English technical terms may appear mixed in
+8. Be conservative - use "needs_review": true if uncertain about epic assignment
+9. P0 = urgent/critical, P1 = important, P2 = normal priority
+10. Convert relative dates to absolute ISO 8601 datetimes (assume current year 2026)
+11. Evidence snippets should be exact quotes from the transcript
 
 LABELS (include all that apply):
 - EpicUpdate: Update to an existing epic
@@ -124,7 +102,8 @@ KNOWLEDGE EXTRACTION:
 - "decision": Decisions made and their rationale
 - "process": Process documentation, workflows
 
-Respond ONLY with the JSON object. No markdown, no explanation.`;
+EXAMPLE OUTPUT FORMAT:
+{"labels":["ActionItem"],"resolved_epic":null,"epic_mentions":[],"new_actions":[],"new_deadlines":[],"blockers":[],"dependencies":[],"issues":[],"knowledge_items":[],"email_drafts":[],"needs_review":false,"evidence_snippets":[]}`;
 
 /**
  * Build the extraction prompt with context
@@ -203,17 +182,28 @@ export function buildRetryPrompt(
   previousResponse: string,
   validationError: string
 ): string {
+  // Truncate previous response if it's too long to avoid context overflow
+  const maxPrevLength = 500;
+  const truncatedPrev = previousResponse.length > maxPrevLength 
+    ? previousResponse.substring(0, maxPrevLength) + '... [truncated]' 
+    : previousResponse;
+
   return `${originalPrompt}
 
 --- PREVIOUS ATTEMPT FAILED ---
-Previous response: ${previousResponse}
-Validation error: ${validationError}
+Error: ${validationError}
+Previous response snippet: ${truncatedPrev}
 
-Please fix the JSON and try again. Ensure:
-1. All dates are valid ISO 8601 format (e.g., "2026-02-05T14:00:00+01:00")
-2. All required fields are present
-3. No extra fields outside the schema
-4. Proper JSON syntax (no trailing commas)`;
+INSTRUCTIONS FOR RETRY:
+1. Output ONLY valid JSON starting with { and ending with }
+2. NO markdown code blocks (no \`\`\`json)
+3. NO explanatory text before or after the JSON
+4. Ensure all strings use double quotes
+5. Ensure all arrays end with ]
+6. Ensure all objects end with }
+7. Remove any trailing commas
+
+If the error was about truncated content, output a valid but possibly incomplete JSON object rather than letting it get cut off mid-token.`;
 }
 
 /**

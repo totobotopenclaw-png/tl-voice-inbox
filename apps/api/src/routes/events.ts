@@ -26,7 +26,26 @@ interface ResolveEventBody {
 }
 
 export async function eventsRoutes(server: FastifyInstance): Promise<void> {
-  
+
+  // POST /api/events/test - Create test event from text (for testing only)
+  server.post('/test', async (request, reply) => {
+    const body = request.body as { title?: string; rawTranscript?: string };
+    const eventId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO events (id, audio_path, status, transcript, created_at, updated_at)
+      VALUES (?, NULL, 'transcribed', ?, ?, ?)
+    `).run(eventId, body.rawTranscript || body.title || 'Test', now, now);
+
+    // Enqueue extract job directly
+    const job = enqueue(eventId, 'extract', { transcript: body.rawTranscript || body.title });
+    console.log(`[Events] Created test event ${eventId} with extract job ${job.id}`);
+
+    reply.status(201);
+    return { eventId, jobId: job.id, status: 'transcribed', createdAt: now };
+  });
+
   // POST /api/events - Create new event from audio upload
   server.post('/', async (request, reply) => {
     const parts = request.parts();
