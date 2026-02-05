@@ -46,6 +46,11 @@ const statusConfig: Record<Event['status'], { label: string; color: string; icon
     color: 'text-green-400', 
     icon: <CheckCircle2 size={14} /> 
   },
+  completed: {
+    label: 'Completed',
+    color: 'text-green-400',
+    icon: <CheckCircle2 size={14} />
+  },
   needs_review: { 
     label: 'Needs Review', 
     color: 'text-yellow-400', 
@@ -106,7 +111,7 @@ function EventItem({
 }
 
 export function EventsTimeline({ onEventClick, selectedEventId }: EventsTimelineProps) {
-  const { events, loading, error, pagination, refresh, loadMore } = useEvents(20);
+  const { events, loading, error, refresh } = useEvents(20);
   const [showAll, setShowAll] = useState(false);
 
   const displayedEvents = showAll ? events : events.slice(0, 5);
@@ -169,20 +174,12 @@ export function EventsTimeline({ onEventClick, selectedEventId }: EventsTimeline
         ))}
       </div>
 
-      {(events.length > 5 || pagination?.hasMore) && (
+      {events.length > 5 && (
         <button
-          onClick={() => {
-            if (pagination?.hasMore && showAll) {
-              loadMore();
-            } else {
-              setShowAll(!showAll);
-            }
-          }}
+          onClick={() => setShowAll(!showAll)}
           className="w-full py-2 text-sm text-slate-500 hover:text-slate-300 flex items-center justify-center gap-1 transition-colors"
         >
-          {pagination?.hasMore && showAll ? (
-            <>Load more <ChevronDown size={14} /></>
-          ) : showAll ? (
+          {showAll ? (
             <>Show less <ChevronUp size={14} /></>
           ) : (
             <>Show all ({events.length}) <ChevronDown size={14} /></>
