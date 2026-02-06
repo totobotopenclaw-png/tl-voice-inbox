@@ -23,7 +23,7 @@ export function Knowledge() {
   const [filter, setFilter] = useState<'all' | 'tech' | 'process' | 'decision'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   
-  const { items, loading, error, refresh } = useKnowledge({
+  const { items, loading, error, refetch: refresh } = useKnowledge({
     kind: filter === 'all' ? undefined : filter,
     search: searchQuery || undefined,
   })

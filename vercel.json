@@ -1,0 +1,22 @@
+{
+  "name": "tl-voice-inbox-web",
+  "version": 2,
+  "builds": [
+    {
+      "src": "apps/web/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "apps/web/dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/apps/web/dist/$1"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://your-api-url.ngrok.io"
+  }
+}

@@ -90,7 +90,7 @@ export function usePushSubscription(): PushSubscriptionHook {
       // Subscribe
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey,
+        applicationServerKey: applicationServerKey as any,
       });
 
       setSubscription(sub);

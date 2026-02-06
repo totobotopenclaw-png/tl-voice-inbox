@@ -1,16 +1,16 @@
 import { useEventDetail } from '../hooks/useEvents';
 
 // Use relative URL in development (hits Vite proxy), absolute in production
-const API_URL = import.meta.env.PROD 
-  ? (import.meta.env.VITE_API_URL || '') 
+const API_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_API_URL || '')
   : '';
-import { 
-  X, 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
-  Loader2, 
-  FileText, 
+import {
+  X,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  FileText,
   Sparkles,
   Mic,
   HelpCircle,
@@ -29,57 +29,51 @@ interface EventDetailPanelProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
-  queued: { 
-    label: 'Queued', 
-    color: 'text-slate-400', 
+  queued: {
+    label: 'Queued',
+    color: 'text-slate-400',
     bgColor: 'bg-slate-900',
-    icon: Clock 
+    icon: Clock
   },
-  transcribing: { 
-    label: 'Transcribing', 
-    color: 'text-blue-400', 
+  transcribing: {
+    label: 'Transcribing',
+    color: 'text-blue-400',
     bgColor: 'bg-blue-950',
-    icon: Mic 
+    icon: Mic
   },
-  transcribed: { 
-    label: 'Transcribed', 
-    color: 'text-blue-300', 
+  transcribed: {
+    label: 'Transcribed',
+    color: 'text-blue-300',
     bgColor: 'bg-blue-950',
-    icon: FileText 
+    icon: FileText
   },
-  processing: { 
-    label: 'Processing', 
-    color: 'text-purple-400', 
+  processing: {
+    label: 'Processing',
+    color: 'text-purple-400',
     bgColor: 'bg-purple-950',
-    icon: Sparkles 
+    icon: Sparkles
   },
-  processed: { 
-    label: 'Processed', 
-    color: 'text-green-400', 
+  processed: {
+    label: 'Processed',
+    color: 'text-green-400',
     bgColor: 'bg-green-950',
-    icon: CheckCircle2 
+    icon: CheckCircle2
   },
-  completed: { 
-    label: 'Completed', 
-    color: 'text-green-400', 
+  completed: {
+    label: 'Completed',
+    color: 'text-green-400',
     bgColor: 'bg-green-950',
-    icon: CheckCircle2 
+    icon: CheckCircle2
   },
-  needs_review: { 
-    label: 'Needs Review', 
-    color: 'text-amber-400', 
+  needs_review: {
+    label: 'Needs Review',
+    color: 'text-amber-400',
     bgColor: 'bg-amber-950',
-    icon: HelpCircle 
+    icon: HelpCircle
   },
   error: { 
     label: 'Error', 
     color: 'text-red-400', 
-    bgColor: 'bg-red-950',
-    icon: AlertCircle 
-  },
-  failed: { 
-    label: 'Failed', 
-    color: 'text-red-500', 
     bgColor: 'bg-red-950',
     icon: AlertCircle 
   },
@@ -107,12 +101,12 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ epicId }),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to resolve');
       }
-      
+
       refresh();
     } catch (err) {
       alert('Failed to resolve: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -161,11 +155,11 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
     );
   }
 
-  const config = statusConfig[event.status] || statusConfig.error || { 
-    label: 'Unknown', 
-    color: 'text-slate-400', 
+  const config = statusConfig[event.status] || statusConfig.error || {
+    label: 'Unknown',
+    color: 'text-slate-400',
     bgColor: 'bg-slate-900',
-    icon: AlertCircle 
+    icon: AlertCircle
   };
   const StatusIcon = config.icon;
 
@@ -268,7 +262,7 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
                 </button>
               ))}
             </div>
-            
+
             {/* Resolve Actions */}
             <div className="flex gap-2 pt-2">
               <button
@@ -323,7 +317,7 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
         )}
 
         {/* Retry Button for Failed Events */}
-        {event.status === 'failed' && (
+        {event.status === 'error' && (
           <div className="space-y-2">
             <button
               onClick={handleRetry}
@@ -348,8 +342,8 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
               {event.jobs.map((job) => {
                 const jobStatus = jobStatusConfig[job.status];
                 return (
-                  <div 
-                    key={job.id} 
+                  <div
+                    key={job.id}
                     className="bg-slate-900 rounded-lg p-3 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2">
