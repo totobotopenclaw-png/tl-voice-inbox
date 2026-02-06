@@ -4,7 +4,9 @@ export function ApiDiagnostics() {
   const [results, setResults] = useState<Array<{name: string; status: 'ok' | 'error' | 'loading'; message?: string}>>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const API_URL = import.meta.env.PROD 
+    ? (import.meta.env.VITE_API_URL || '') 
+    : '';
 
   const runTests = async () => {
     const tests = [

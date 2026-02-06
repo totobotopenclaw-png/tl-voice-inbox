@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { KnowledgeItem } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Use relative URL in development (hits Vite proxy), absolute in production
+const API_URL = import.meta.env.PROD 
+  ? (import.meta.env.VITE_API_URL || '') 
+  : '';
 
 interface UseKnowledgeOptions {
   kind?: 'tech' | 'process' | 'decision';
