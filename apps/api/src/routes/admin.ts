@@ -1,6 +1,7 @@
 // Admin routes - queue status, model management, cleanup
 
 import type { FastifyInstance } from 'fastify';
+import { db } from '../db/connection.js';
 import { 
   getQueueStats, 
   cancelJob, 

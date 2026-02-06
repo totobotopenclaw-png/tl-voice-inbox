@@ -1,6 +1,6 @@
 // Shared types for job queue and workers
 
-export type JobType = 'stt' | 'extract' | 'reprocess' | 'push';
+export type JobType = 'stt' | 'extract' | 'reprocess' | 'push' | 'ttl_cleanup';
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'retry';
 
 export interface Job {
@@ -37,6 +37,8 @@ export interface PushJobPayload {
   notificationType: string;
   title: string;
   body: string;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export type JobResult = {

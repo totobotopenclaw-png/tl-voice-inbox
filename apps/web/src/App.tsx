@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Inbox } from './pages/Inbox';
+import { Actions } from './pages/Actions';
 import { Deadlines } from './pages/Deadlines';
 import { NeedsReview } from './pages/NeedsReview';
 import { Epics } from './pages/Epics';
@@ -16,6 +17,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/inbox" element={<Inbox />} />
+          <Route path="/actions" element={<Actions />} />
           <Route path="/deadlines" element={<Deadlines />} />
           <Route path="/needs-review" element={<NeedsReview />} />
           <Route path="/epics" element={<Epics />} />

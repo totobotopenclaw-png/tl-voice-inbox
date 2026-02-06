@@ -8,12 +8,14 @@ import {
   Mic,
   Menu,
   X,
+  CheckSquare,
 } from 'lucide-react'
 import { useState } from 'react'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: Mic },
   { path: '/inbox', label: 'Inbox', icon: Inbox },
+  { path: '/actions', label: 'Actions', icon: CheckSquare },
   { path: '/deadlines', label: 'Deadlines', icon: Clock },
   { path: '/needs-review', label: 'Needs Review', icon: HelpCircle },
   { path: '/epics', label: 'Epics', icon: FolderKanban },

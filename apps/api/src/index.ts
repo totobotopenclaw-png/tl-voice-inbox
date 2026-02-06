@@ -8,6 +8,7 @@ import { sttWorker } from './workers/stt/index.js';
 import { extractWorker } from './workers/extract/index.js';
 import { reprocessWorker } from './workers/reprocess/index.js';
 import { pushWorker } from './workers/push/index.js';
+import { ttlCleanupWorker } from './workers/ttl-cleanup/index.js';
 import { llmManager } from './llm/manager.js';
 import { scheduleCleanup } from './ttl/manager.js';
 import { initializePushService } from './services/push.js';
@@ -54,7 +55,6 @@ server.register(epicsRoutes, { prefix: '/api/epics' });
 server.register(actionsRoutes, { prefix: '/api/actions' });
 server.register(knowledgeRoutes, { prefix: '/api/knowledge' });
 server.register(pushRoutes, { prefix: '/api/push' });
-server.register(actionsRoutes, { prefix: '/api/actions' });
 
 // Initialize and start workers
 async function initializeWorkers(): Promise<void> {
@@ -88,6 +88,7 @@ async function initializeWorkers(): Promise<void> {
   runner.register(extractWorker);
   runner.register(reprocessWorker);
   runner.register(pushWorker);
+  runner.register(ttlCleanupWorker);
 
   // Initialize push service
   initializePushService();

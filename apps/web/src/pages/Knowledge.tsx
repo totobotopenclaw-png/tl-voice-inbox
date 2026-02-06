@@ -1,53 +1,6 @@
 import { useState } from 'react'
-import { BookOpen, Plus, Search, Tag, FileText, Lightbulb, GitBranch } from 'lucide-react'
-
-const mockKnowledge = [
-  {
-    id: '1',
-    title: 'Database Schema v2 Design',
-    kind: 'tech',
-    tags: ['database', 'schema', 'postgres'],
-    epic_id: 'api-v2',
-    preview: 'The new schema introduces partitioned tables for better performance at scale...',
-    created_at: '2026-02-01T10:00:00Z',
-  },
-  {
-    id: '2',
-    title: 'Decision: GraphQL vs REST',
-    kind: 'decision',
-    tags: ['api', 'graphql', 'architecture'],
-    epic_id: 'api-v2',
-    preview: 'After evaluating both approaches, we decided to stick with REST for v2 due to...',
-    created_at: '2026-01-28T14:00:00Z',
-  },
-  {
-    id: '3',
-    title: 'Onboarding Process for Backend Devs',
-    kind: 'process',
-    tags: ['onboarding', 'docs'],
-    epic_id: null,
-    preview: 'Step-by-step guide for new backend developers joining the team...',
-    created_at: '2026-01-15T09:00:00Z',
-  },
-  {
-    id: '4',
-    title: 'OAuth2 Implementation Details',
-    kind: 'tech',
-    tags: ['auth', 'oauth', 'security'],
-    epic_id: 'auth-migration',
-    preview: 'Token flow, refresh strategy, and security considerations...',
-    created_at: '2026-02-03T16:00:00Z',
-  },
-  {
-    id: '5',
-    title: 'Decision: Monorepo Structure',
-    kind: 'decision',
-    tags: ['architecture', 'monorepo'],
-    epic_id: null,
-    preview: 'Why we chose pnpm workspaces over Nx or Turborepo...',
-    created_at: '2026-01-20T11:00:00Z',
-  },
-]
+import { BookOpen, Plus, Search, Tag, FileText, Lightbulb, GitBranch, Loader2 } from 'lucide-react'
+import { useKnowledge } from '../hooks/useKnowledge'
 
 const kindIcons: Record<string, React.ElementType> = {
   tech: FileText,
@@ -64,11 +17,10 @@ const kindColors: Record<string, string> = {
 export function Knowledge() {
   const [filter, setFilter] = useState<'all' | 'tech' | 'process' | 'decision'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-
-  const filteredKnowledge = mockKnowledge.filter((item) => {
-    if (filter !== 'all' && item.kind !== filter) return false
-    if (searchQuery && !item.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
-    return true
+  
+  const { items, loading, error } = useKnowledge({
+    kind: filter === 'all' ? undefined : filter,
+    search: searchQuery || undefined,
   })
 
   return (
@@ -110,9 +62,29 @@ export function Knowledge() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+          Error loading knowledge: {error}
+        </div>
+      )}
+
       {/* Knowledge List */}
       <div className="space-y-3">
-        {filteredKnowledge.map((item) => {
+        {!loading && items.length === 0 && (
+          <div className="text-center py-12 text-slate-500">
+            No knowledge items found
+          </div>
+        )}
+        
+        {items.map((item) => {
           const Icon = kindIcons[item.kind]
           return (
             <div
@@ -132,11 +104,13 @@ export function Knowledge() {
                     </span>
                   </div>
 
-                  <p className="text-sm text-slate-500 mb-3">{item.preview}</p>
+                  <p className="text-sm text-slate-500 mb-3 line-clamp-2">
+                    {item.body_md?.substring(0, 200)}...
+                  </p>
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {item.tags.map((tag) => (
+                      {item.tags?.map((tag) => (
                         <span
                           key={tag}
                           className="flex items-center gap-1 px-2 py-0.5 bg-slate-800 rounded text-xs text-slate-500"

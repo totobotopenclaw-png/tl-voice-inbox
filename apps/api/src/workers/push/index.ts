@@ -98,7 +98,7 @@ export class PushWorker {
 
         return {
           success: false,
-          error: result.error,
+          error: result.error || 'Push failed',
           retryable: result.retryable,
         };
       }
@@ -118,12 +118,16 @@ export class PushWorker {
    * Build notification payload based on notification type
    */
   private buildNotification(payload: PushJobPayload): { title: string; body: string; tag: string; url?: string } {
-    const baseNotification = {
+    const url = payload.data?.url;
+    const baseNotification: { title: string; body: string; tag: string; url?: string } = {
       title: payload.title,
       body: payload.body,
       tag: `${payload.notificationType}-${Date.now()}`,
-      url: payload.data?.url as string | undefined,
     };
+    
+    if (typeof url === 'string') {
+      baseNotification.url = url;
+    }
 
     return baseNotification;
   }
