@@ -61,6 +61,50 @@ interface FtsMatchRow extends FtsRow {
 
 export const searchRepository = {
   /**
+   * Search knowledge items specifically
+   * Used for building LLM context
+   */
+  searchKnowledge(query: string, limit: number = 5): Array<{ id: string; title: string; type: string; content: string }> {
+    // Escape FTS5 special characters: " [ ] ( ) * ^ { } : - , . / etc
+    const sanitizedQuery = query
+      .replace(/"/g, '""')  // Escape double quotes
+      .replace(/[\[\](){}:^*,./;!?@#$%&=+~`|\\-]/g, ' ')  // Replace special chars with space
+      .trim();
+
+    if (!sanitizedQuery) {
+      return [];
+    }
+
+    const stmt = db.prepare(`
+      SELECT 
+        s.content_id as id,
+        s.title,
+        s.content_type as type,
+        s.content,
+        bm25(search_fts, 1.0, 0.8, 1.2, 0.5) as rank
+      FROM search_fts s
+      WHERE s.content_type = 'knowledge' AND search_fts MATCH ?
+      ORDER BY rank ASC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(sanitizedQuery, limit) as Array<{
+      id: string;
+      title: string;
+      type: string;
+      content: string;
+      rank: number;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      content: row.content,
+    }));
+  },
+
+  /**
    * Search using FTS5 with BM25 ranking
    * BM25: best matching 25 - standard ranking function for text search
    * Lower rank = better match

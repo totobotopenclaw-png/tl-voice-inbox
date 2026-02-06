@@ -2,8 +2,10 @@ import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const TEST_DB_DIR = './tests/data';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TEST_DB_DIR = path.join(__dirname, '../data');
 const TEST_DB_PATH = path.join(TEST_DB_DIR, 'test.db');
 
 let testDb: DatabaseType | null = null;
