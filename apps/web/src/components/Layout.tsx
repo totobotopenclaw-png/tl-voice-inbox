@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { ApiDiagnostics } from './ApiDiagnostics'
 
 interface LayoutProps {
   children: ReactNode
@@ -16,6 +17,7 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </main>
       </div>
+      <ApiDiagnostics />
     </div>
   )
 }
