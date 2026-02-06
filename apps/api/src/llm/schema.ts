@@ -11,8 +11,8 @@ import type {
   ExtractorOutput,
 } from '@tl-voice-inbox/shared';
 
-// Priority enum
-const PrioritySchema = z.enum(['P0', 'P1', 'P2']);
+// Priority enum - accept P3 from LLM but normalize to P2
+const PrioritySchema = z.enum(['P0', 'P1', 'P2', 'P3']).transform(val => val === 'P3' ? 'P2' : val);
 
 // Action type enum
 const ActionTypeSchema = z.enum(['follow_up', 'deadline', 'email']);
