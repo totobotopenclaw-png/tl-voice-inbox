@@ -1,7 +1,13 @@
 // Admin routes - queue status, model management, cleanup
 
 import type { FastifyInstance } from 'fastify';
-import { getQueueStats } from '../queue/manager.js';
+import { 
+  getQueueStats, 
+  cancelJob, 
+  getDeadLetterQueue, 
+  retryDeadLetterJob,
+  purgeOldJobs,
+} from '../queue/manager.js';
 import { getWorkerRunner } from '../queue/runner.js';
 import { runCleanup, getTranscriptStats } from '../ttl/manager.js';
 import { listModels, ensureModel, deleteModel, checkModel, type WhisperModelSize } from '../workers/stt/model-manager.js';
@@ -22,6 +28,74 @@ export async function adminRoutes(server: FastifyInstance): Promise<void> {
         runningJobs: status.runningJobs,
         maxConcurrent: status.maxConcurrent,
       },
+    };
+  });
+
+  // GET /api/admin/queue/dead-letter - Get dead letter queue
+  server.get('/queue/dead-letter', async (request) => {
+    const { limit = '50', offset = '0' } = request.query as { 
+      limit?: string; 
+      offset?: string;
+    };
+    
+    const jobs = getDeadLetterQueue(parseInt(limit, 10), parseInt(offset, 10));
+    
+    return {
+      jobs: jobs.map(j => ({
+        id: j.id,
+        eventId: j.eventId,
+        type: j.type,
+        status: j.status,
+        attempts: j.attempts,
+        maxAttempts: j.maxAttempts,
+        errorMessage: j.errorMessage,
+        deadLetterAt: j.deadLetterAt,
+        deadLetterReason: j.deadLetterReason,
+        createdAt: j.createdAt,
+        updatedAt: j.updatedAt,
+      })),
+      count: jobs.length,
+    };
+  });
+
+  // POST /api/admin/queue/dead-letter/:id/retry - Retry a dead letter job
+  server.post<{ Params: { id: string } }>('/queue/dead-letter/:id/retry', async (request, reply) => {
+    const { id } = request.params;
+    
+    const result = retryDeadLetterJob(id);
+    
+    if (!result.success) {
+      reply.status(400);
+      return { success: false, error: result.error };
+    }
+    
+    return { success: true, message: 'Job queued for retry' };
+  });
+
+  // POST /api/admin/queue/jobs/:id/cancel - Cancel a pending job
+  server.post<{ Params: { id: string } }>('/queue/jobs/:id/cancel', async (request, reply) => {
+    const { id } = request.params;
+    const { cancelledBy = 'user' } = request.body as { cancelledBy?: string };
+    
+    const result = cancelJob(id, cancelledBy);
+    
+    if (!result.success) {
+      reply.status(400);
+      return { success: false, error: result.error };
+    }
+    
+    return { success: true, message: 'Job cancelled successfully' };
+  });
+
+  // POST /api/admin/queue/purge - Purge old completed/failed jobs
+  server.post('/queue/purge', async (request) => {
+    const { olderThanDays = '7' } = request.body as { olderThanDays?: string };
+    
+    const result = purgeOldJobs(parseInt(olderThanDays, 10));
+    
+    return {
+      success: true,
+      purged: result.purged,
     };
   });
 
@@ -107,7 +181,7 @@ export async function adminRoutes(server: FastifyInstance): Promise<void> {
     };
   });
 
-  // POST /api/admin/purge-transcripts - Purge expired transcripts
+  // POST /api/admin/purge-transcripts - Purge expired transcripts (legacy name)
   server.post('/purge-transcripts', async () => {
     const result = runCleanup();
     
@@ -118,6 +192,86 @@ export async function adminRoutes(server: FastifyInstance): Promise<void> {
         audioFilesDeleted: result.audioFilesDeleted,
         errors: result.errors.length > 0 ? result.errors : undefined,
       },
+    };
+  });
+
+  // POST /api/admin/purge-expired - Purge expired transcripts (PRD name)
+  server.post('/purge-expired', async () => {
+    const result = runCleanup();
+    
+    return {
+      success: true,
+      result: {
+        transcriptsCleared: result.transcriptsCleared,
+        audioFilesDeleted: result.audioFilesDeleted,
+        errors: result.errors.length > 0 ? result.errors : undefined,
+      },
+    };
+  });
+
+  // GET /api/admin/stats - Observability metrics
+  server.get('/stats', async () => {
+    // Event stats
+    const eventStats = db.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'needs_review' THEN 1 ELSE 0 END) as needs_review,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN status = 'queued' OR status = 'transcribing' OR status = 'transcribed' OR status = 'processing' THEN 1 ELSE 0 END) as in_progress
+      FROM events
+    `).get() as { total: number; needs_review: number; completed: number; failed: number; in_progress: number };
+
+    // Action stats
+    const actionStats = db.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN due_at IS NOT NULL AND due_at < datetime('now') AND completed_at IS NULL THEN 1 ELSE 0 END) as overdue
+      FROM actions
+    `).get() as { total: number; pending: number; completed: number; overdue: number };
+
+    // Event run metrics (latency and failures)
+    const runMetrics = db.prepare(`
+      SELECT 
+        AVG(CASE WHEN status = 'success' THEN duration_ms END) as avg_latency,
+        SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as failures,
+        SUM(CASE WHEN status = 'retry' THEN 1 ELSE 0 END) as retries,
+        COUNT(*) as total_runs
+      FROM event_runs
+      WHERE created_at >= datetime('now', '-24 hours')
+    `).get() as { avg_latency: number | null; failures: number; retries: number; total_runs: number };
+
+    // Queue stats
+    const queueStats = getQueueStats();
+
+    // Needs review ratio
+    const needsReviewRatio = eventStats.total > 0 
+      ? eventStats.needs_review / eventStats.total 
+      : 0;
+
+    return {
+      events: {
+        total: eventStats.total,
+        needsReview: eventStats.needs_review,
+        completed: eventStats.completed,
+        failed: eventStats.failed,
+        inProgress: eventStats.in_progress,
+        needsReviewRatio: Math.round(needsReviewRatio * 1000) / 1000, // 3 decimal places
+      },
+      actions: actionStats,
+      performance: {
+        avgLatencyMs: Math.round(runMetrics.avg_latency || 0),
+        failures24h: runMetrics.failures,
+        retries24h: runMetrics.retries,
+        totalRuns24h: runMetrics.total_runs,
+        successRate: runMetrics.total_runs > 0 
+          ? Math.round(((runMetrics.total_runs - runMetrics.failures) / runMetrics.total_runs) * 1000) / 10 
+          : 100,
+      },
+      queue: queueStats,
+      timestamp: new Date().toISOString(),
     };
   });
 

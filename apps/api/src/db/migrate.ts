@@ -303,6 +303,51 @@ const migrations: Migration[] = [
         applied_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `
+  },
+  {
+    id: '004_push_notifications_tracking',
+    name: 'Add push notifications sent tracking',
+    sql: `
+      -- Track which push notifications have been sent to avoid duplicates
+      CREATE TABLE IF NOT EXISTS push_notifications_sent (
+        id TEXT PRIMARY KEY,
+        action_id TEXT REFERENCES actions(id) ON DELETE CASCADE,
+        event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+        notification_type TEXT NOT NULL,
+        sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_push_notif_action ON push_notifications_sent(action_id);
+      CREATE INDEX IF NOT EXISTS idx_push_notif_event ON push_notifications_sent(event_id);
+      CREATE INDEX IF NOT EXISTS idx_push_notif_type ON push_notifications_sent(notification_type);
+    `
+  },
+  {
+    id: '005_dead_letter_queue',
+    name: 'Add dead letter queue for failed jobs',
+    sql: `
+      -- Dead letter queue for permanently failed jobs
+      CREATE TABLE IF NOT EXISTS dead_letter_queue (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        payload TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        error_message TEXT,
+        dead_letter_at TEXT NOT NULL DEFAULT (datetime('now')),
+        dead_letter_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_dead_letter_job_id ON dead_letter_queue(job_id);
+      CREATE INDEX IF NOT EXISTS idx_dead_letter_event_id ON dead_letter_queue(event_id);
+      CREATE INDEX IF NOT EXISTS idx_dead_letter_type ON dead_letter_queue(type);
+      CREATE INDEX IF NOT EXISTS idx_dead_letter_at ON dead_letter_queue(dead_letter_at);
+    `
   }
 ];
 

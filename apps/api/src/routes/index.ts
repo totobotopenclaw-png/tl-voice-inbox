@@ -4,3 +4,6 @@ export { adminRoutes } from './admin.js';
 export { llmAdminRoutes } from './admin-llm.js';
 export { eventsRoutes } from './events.js';
 export { epicsRoutes } from './epics.js';
+export { pushRoutes } from './push.js';
+export { actionsRoutes } from './actions.js';
+export { knowledgeRoutes } from './knowledge.js';

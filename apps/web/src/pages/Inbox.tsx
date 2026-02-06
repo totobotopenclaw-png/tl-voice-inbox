@@ -1,57 +1,24 @@
-import { useState } from 'react'
-import { Check, Circle, Clock, AlertCircle, Filter, Search } from 'lucide-react'
-import { Action } from '../types'
+import { useState, useEffect, useCallback } from 'react'
+import { Check, Circle, Clock, AlertCircle, Search, Loader2, RefreshCw } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { API_URL } from '../hooks/useEvents'
 
-const mockActions: Action[] = [
-  {
-    id: '1',
-    type: 'follow_up',
-    title: 'Review authentication PR from Maria',
-    priority: 'P1',
-    status: 'open',
-    due_at: null,
-    mentions: ['Maria'],
-    epic_id: 'auth-migration',
-    body: 'Check the OAuth implementation and test coverage',
-    created_at: '2026-02-04T10:00:00Z',
-  },
-  {
-    id: '2',
-    type: 'deadline',
-    title: 'Submit quarterly review',
-    priority: 'P0',
-    status: 'open',
-    due_at: '2026-02-05T17:00:00Z',
-    mentions: [],
-    epic_id: null,
-    body: 'Complete the quarterly performance review document',
-    created_at: '2026-02-03T14:00:00Z',
-  },
-  {
-    id: '3',
-    type: 'follow_up',
-    title: 'Check deployment status on staging',
-    priority: 'P2',
-    status: 'open',
-    due_at: null,
-    mentions: ['DevOps'],
-    epic_id: 'api-v2',
-    body: 'Verify the new endpoints are working correctly',
-    created_at: '2026-02-04T16:00:00Z',
-  },
-  {
-    id: '4',
-    type: 'follow_up',
-    title: 'Update documentation for webhooks',
-    priority: 'P3',
-    status: 'done',
-    due_at: null,
-    mentions: [],
-    epic_id: 'api-v2',
-    body: 'Add examples for the new webhook payloads',
-    created_at: '2026-02-01T09:00:00Z',
-  },
-]
+interface Action {
+  id: string
+  sourceEventId: string
+  epicId: string | null
+  type: 'follow_up' | 'deadline' | 'email'
+  title: string
+  body: string
+  priority: 'P0' | 'P1' | 'P2' | 'P3'
+  status: 'open' | 'done' | 'cancelled'
+  dueAt: string | null
+  completedAt: string | null
+  createdAt: string
+  updatedAt: string
+  epicTitle: string | null
+  mentions: string[]
+}
 
 const priorityColors = {
   P0: 'text-red-400 bg-red-500/10',
@@ -67,10 +34,61 @@ const typeIcons = {
 }
 
 export function Inbox() {
+  const [actions, setActions] = useState<Action[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'open' | 'done'>('open')
   const [searchQuery, setSearchQuery] = useState('')
+  const [toggling, setToggling] = useState<Set<string>>(new Set())
 
-  const filteredActions = mockActions.filter((action) => {
+  const fetchActions = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`${API_URL}/api/actions?limit=100`)
+      if (!response.ok) throw new Error('Failed to fetch actions')
+      const data = await response.json()
+      setActions(data.actions || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchActions()
+  }, [fetchActions])
+
+  const handleToggleStatus = async (actionId: string, currentStatus: string) => {
+    setToggling(prev => new Set(prev).add(actionId))
+    
+    try {
+      const newStatus = currentStatus === 'open' ? 'done' : 'open'
+      const response = await fetch(`${API_URL}/api/actions/${actionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      
+      if (!response.ok) throw new Error('Failed to update action')
+      
+      // Optimistic update
+      setActions(prev => prev.map(a => 
+        a.id === actionId ? { ...a, status: newStatus } : a
+      ))
+    } catch (err) {
+      alert('Failed to update: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setToggling(prev => {
+        const next = new Set(prev)
+        next.delete(actionId)
+        return next
+      })
+    }
+  }
+
+  const filteredActions = actions.filter((action) => {
     if (filter === 'open' && action.status !== 'open') return false
     if (filter === 'done' && action.status !== 'done') return false
     if (searchQuery && !action.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
@@ -81,7 +99,16 @@ export function Inbox() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-100">Inbox</h1>
-        <span className="text-slate-500">{filteredActions.length} items</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchActions}
+            disabled={loading}
+            className="p-2 text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <span className="text-slate-500">{filteredActions.length} items</span>
+        </div>
       </div>
 
       {/* Filters */}
@@ -113,10 +140,42 @@ export function Inbox() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && actions.length === 0 && (
+        <div className="text-center py-16">
+          <Loader2 size={32} className="animate-spin mx-auto text-primary-600 mb-4" />
+          <p className="text-slate-500">Loading actions...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-16 bg-red-500/10 border border-red-500/20 rounded-xl">
+          <AlertCircle size={48} className="mx-auto text-red-400 mb-4" />
+          <p className="text-red-400">{error}</p>
+          <button 
+            onClick={fetchActions}
+            className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-300"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && filteredActions.length === 0 && (
+        <div className="text-center py-16 bg-slate-900 border border-slate-800 rounded-xl">
+          <Check size={48} className="mx-auto text-emerald-400 mb-4" />
+          <h3 className="text-lg font-medium text-slate-200">{filter === 'done' ? 'No completed actions' : 'All caught up!'}</h3>
+          <p className="text-slate-500">{filter === 'done' ? 'Complete some actions to see them here.' : 'No actions in your inbox.'}</p>
+        </div>
+      )}
+
       {/* Actions List */}
       <div className="space-y-2">
         {filteredActions.map((action) => {
           const Icon = typeIcons[action.type]
+          const isToggling = toggling.has(action.id)
           return (
             <div
               key={action.id}
@@ -126,13 +185,19 @@ export function Inbox() {
             >
               <div className="flex items-start gap-4">
                 <button
-                  className={`mt-1 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                  onClick={() => handleToggleStatus(action.id, action.status)}
+                  disabled={isToggling}
+                  className={`mt-1 w-5 h-5 rounded border flex items-center justify-center transition-colors disabled:opacity-50 ${
                     action.status === 'done'
                       ? 'bg-primary-600 border-primary-600'
                       : 'border-slate-600 hover:border-primary-500'
                   }`}
                 >
-                  {action.status === 'done' && <Check size={12} className="text-white" />}
+                  {isToggling ? (
+                    <Loader2 size={12} className="animate-spin text-slate-400" />
+                  ) : action.status === 'done' ? (
+                    <Check size={12} className="text-white" />
+                  ) : null}
                 </button>
 
                 <div className="flex-1 min-w-0">
@@ -148,14 +213,19 @@ export function Inbox() {
                   <p className="text-sm text-slate-500 mt-1">{action.body}</p>
 
                   <div className="flex items-center gap-4 mt-2 text-xs text-slate-600">
-                    {action.epic_id && (
-                      <span className="text-primary-400">{action.epic_id}</span>
+                    {action.epicId && (
+                      <Link 
+                        to={`/epics`}
+                        className="text-primary-400 hover:text-primary-300"
+                      >
+                        {action.epicTitle || action.epicId}
+                      </Link>
                     )}
                     {action.mentions.length > 0 && (
                       <span>@{action.mentions.join(', ')}</span>
                     )}
-                    {action.due_at && (
-                      <span className="text-amber-400">Due {new Date(action.due_at).toLocaleDateString()}</span>
+                    {action.dueAt && (
+                      <span className="text-amber-400">Due {new Date(action.dueAt).toLocaleDateString()}</span>
                     )}
                   </div>
                 </div>

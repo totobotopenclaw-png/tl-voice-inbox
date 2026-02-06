@@ -16,6 +16,7 @@ import { llmManager, validateExtractionOutput, formatValidationErrors } from '..
 import { buildExtractionPrompt, buildRetryPrompt, getSystemPrompt } from '../../llm/prompts.js';
 import { searchKnowledge } from '../../db/repositories/search.js';
 import type { ValidatedExtractionOutput } from '../../llm/schema.js';
+import { enqueueNeedsReviewNotification } from '../../services/push-notifications.js';
 
 const MAX_EXTRACTION_ATTEMPTS = 3;
 const EPIC_CONFIDENCE_THRESHOLD = 0.6;
@@ -86,7 +87,8 @@ export class ExtractWorker {
         );
 
         // Enqueue push notification (M8)
-        // TODO: await enqueuePushNotification(job.eventId, 'needs_review');
+        const epicTitles = candidates.slice(0, 3).map(c => c.epic.title);
+        enqueueNeedsReviewNotification(job.eventId, epicTitles);
 
         const duration = Date.now() - startTime;
         this.recordRun(job.eventId, 'extract', 

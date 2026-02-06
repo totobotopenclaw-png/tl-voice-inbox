@@ -7,6 +7,8 @@ interface FtsRow {
   title: string;
   content: string;
   created_at?: string;
+  status?: string;
+  epic_id?: string;
 }
 
 /**
@@ -63,7 +65,7 @@ export const searchRepository = {
    * BM25: best matching 25 - standard ranking function for text search
    * Lower rank = better match
    */
-  search(query: string, limit: number = 20): SearchResult[] {
+  search(query: string, limit: number = 20): Array<SearchResult & { status?: string; epic_id?: string }> {
     // Sanitize query for FTS5 MATCH (escape special characters)
     const sanitizedQuery = query
       .replace(/"/g, '""') // Escape quotes
@@ -81,21 +83,23 @@ export const searchRepository = {
         s.title,
         s.content,
         e.created_at,
+        e.status,
+        e.epic_id,
         bm25(search_fts, 1.0, 0.8, 1.2, 0.5) as rank
       FROM search_fts s
       LEFT JOIN (
-        SELECT id as content_id, created_at FROM actions
+        SELECT id as content_id, created_at, NULL as status, epic_id FROM actions
         UNION ALL
-        SELECT id, created_at FROM knowledge_items
+        SELECT id, created_at, NULL as status, epic_id FROM knowledge_items
         UNION ALL
-        SELECT id, created_at FROM epics
+        SELECT id, created_at, NULL as status, NULL as epic_id FROM epics
       ) e ON s.content_id = e.content_id
       WHERE search_fts MATCH ?
       ORDER BY rank ASC
       LIMIT ?
     `);
 
-    const rows = stmt.all(sanitizedQuery, limit) as FtsMatchRow[];
+    const rows = stmt.all(sanitizedQuery, limit) as Array<FtsMatchRow & { status: string | null; epic_id: string | null }>;
 
     return rows.map((row) => ({
       id: row.content_id,
@@ -104,6 +108,62 @@ export const searchRepository = {
       content: row.content.slice(0, 500), // Limit content length
       rank: row.rank,
       created_at: row.created_at || new Date().toISOString(),
+      status: row.status || undefined,
+      epic_id: row.epic_id || undefined,
+    }));
+  },
+
+  /**
+   * Search within a specific epic
+   */
+  searchByEpic(query: string, epicId: string, limit: number = 20): Array<SearchResult & { status?: string; epic_id?: string }> {
+    const sanitizedQuery = query
+      .replace(/"/g, '""')
+      .replace(/[\[\](){}:^*,./;!?@#$%&=+~`|\\-]/g, ' ')
+      .trim();
+
+    if (!sanitizedQuery) {
+      return [];
+    }
+
+    const stmt = db.prepare(`
+      SELECT 
+        s.content_type,
+        s.content_id,
+        s.title,
+        s.content,
+        e.created_at,
+        CASE 
+          WHEN s.content_type = 'action' THEN 
+            CASE WHEN a.completed_at IS NULL THEN 'pending' ELSE 'completed' END
+          ELSE NULL
+        END as status,
+        e.epic_id,
+        bm25(search_fts, 1.0, 0.8, 1.2, 0.5) as rank
+      FROM search_fts s
+      LEFT JOIN (
+        SELECT id as content_id, created_at, epic_id FROM actions
+        UNION ALL
+        SELECT id, created_at, epic_id FROM knowledge_items
+      ) e ON s.content_id = e.content_id
+      LEFT JOIN actions a ON s.content_id = a.id AND s.content_type = 'action'
+      WHERE search_fts MATCH ?
+        AND e.epic_id = ?
+      ORDER BY rank ASC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(sanitizedQuery, epicId, limit) as Array<FtsMatchRow & { status: string | null; epic_id: string | null }>;
+
+    return rows.map((row) => ({
+      id: row.content_id,
+      type: row.content_type as SearchResult['type'],
+      title: row.title,
+      content: row.content.slice(0, 500),
+      rank: row.rank,
+      created_at: row.created_at || new Date().toISOString(),
+      status: row.status || undefined,
+      epic_id: row.epic_id || undefined,
     }));
   },
 

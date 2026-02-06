@@ -8,6 +8,9 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:rollback": "tsx src/db/rollback.ts",
     "test:db": "tsx src/db/test.ts",
@@ -16,7 +19,8 @@
     "model:check": "tsx scripts/model-manager.ts check",
     "llm:download": "tsx scripts/llm-manager.ts download",
     "llm:check": "tsx scripts/llm-manager.ts check",
-    "llm:ensure": "tsx scripts/llm-manager.ts ensure"
+    "llm:ensure": "tsx scripts/llm-manager.ts ensure",
+    "generate-vapid-keys": "tsx scripts/generate-vapid-keys.ts"
   },
   "dependencies": {
     "@fastify/multipart": "^9.4.0",
@@ -29,13 +33,17 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
+    "@types/supertest": "^6.0.2",
     "@types/uuid": "^10.0.0",
-    "@types/web-push": "^3.6.4",
+    "@types/web-push": "^3.6.3",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
+    "@vitest/coverage-v8": "^1.6.0",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
+    "supertest": "^7.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^1.6.0"
   }
 }
