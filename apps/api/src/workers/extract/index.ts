@@ -166,6 +166,54 @@ export class ExtractWorker {
         resolvedEpic = newEpic;
         console.log(`[ExtractWorker] Created epic ${newEpic.id}: ${newEpic.title}`);
       }
+      
+      // Step 7c: Fallback - Extract epic from action titles if LLM didn't suggest one
+      // Look for patterns like "CP39", "Project X", etc. in action titles
+      if (!resolvedEpic && !output.suggested_new_epic && output.new_actions.length > 0) {
+        const epicPattern = /(?:CP|EP|Project|Proyecto)\s*(\d+|[A-Z][a-zA-Z]+)/gi;
+        const matches: string[] = [];
+        
+        for (const action of output.new_actions) {
+          const titleMatches = action.title.match(epicPattern);
+          if (titleMatches) {
+            matches.push(...titleMatches);
+          }
+          if (action.body) {
+            const bodyMatches = action.body.match(epicPattern);
+            if (bodyMatches) {
+              matches.push(...bodyMatches);
+            }
+          }
+        }
+        
+        if (matches.length > 0) {
+          // Get most frequent match
+          const matchCounts = matches.reduce((acc, m) => {
+            const normalized = m.toUpperCase().replace(/\s+/g, '');
+            acc[normalized] = (acc[normalized] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          
+          const bestMatch = Object.entries(matchCounts)
+            .sort((a, b) => b[1] - a[1])[0]?.[0];
+          
+          if (bestMatch) {
+            console.log(`[ExtractWorker] Fallback: Creating epic from action titles: ${bestMatch}`);
+            const epicTitle = bestMatch.match(/^(CP|EP|PROJECT)/i) 
+              ? bestMatch.toUpperCase()
+              : `Project ${bestMatch}`;
+            
+            const newEpic = epicsRepository.create(
+              epicTitle,
+              `Epic auto-extracted from voice recording`
+            );
+            epicsRepository.addAlias(newEpic.id, bestMatch);
+            
+            resolvedEpic = newEpic;
+            console.log(`[ExtractWorker] Created fallback epic ${newEpic.id}: ${newEpic.title}`);
+          }
+        }
+      }
 
       // Step 7b: If extraction marked needs_review and NO epic (existing or new)
       if (output.needs_review && !resolvedEpic) {

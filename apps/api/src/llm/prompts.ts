@@ -88,11 +88,20 @@ LABELS (include all that apply):
 - Blocker: Something is blocked
 - Issue: Problem identified
 
-EPIC ASSIGNMENT:
-- If confident about which epic this belongs to, set resolved_epic
-- If multiple epics mentioned, list them in epic_mentions
-- If NO existing epic matches but content describes a new project/topic, set suggested_new_epic with title, description, and aliases
-- If uncertain between multiple existing epics, set needs_review: true
+EPIC ASSIGNMENT - MANDATORY RULES:
+1. Scan transcript for project names, code names, or topics (e.g., "CP39", "API v2", "Mobile App", "Project Alpha")
+2. If transcript mentions creating/starting/working on a NEW project/epic → set suggested_new_epic
+3. If transcript mentions specific code names (CP39, CP38, etc.) and NO existing epic matches → set suggested_new_epic
+4. suggested_new_epic MUST include: title (with code name), description (what it's about), aliases (code names)
+5. DO NOT set needs_review=true when suggesting a new epic - the system will create it automatically
+
+WHEN TO CREATE suggested_new_epic:
+- "Crear épica CP39..." → {"suggested_new_epic": {"title": "CP39 - Política de Cancelación", "description": "Sistema de gestión de políticas de cancelación", "aliases": ["CP39", "cancelación", "política"]}}
+- "Trabajar en el proyecto Mobile..." → {"suggested_new_epic": {"title": "Mobile App", "description": "Aplicación móvil", "aliases": ["Mobile", "App"]}}
+- "Para la épica de reservas CP38..." → {"suggested_new_epic": {"title": "CP38 - Sistema de Reservas", "description": "Gestión de reservas de hotel", "aliases": ["CP38", "reservas"]}}
+
+WHEN NOT TO CREATE (use resolved_epic):
+- Only when transcript CLEARLY references an existing epic by exact name/alias
 
 ACTION EXTRACTION:
 - "follow_up": General task without specific deadline
