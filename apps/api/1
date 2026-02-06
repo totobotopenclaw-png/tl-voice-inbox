@@ -1,0 +1,2 @@
+[PushService] VAPID keys not configured. Push notifications will be disabled.
+[PushService] Run: pnpm generate-vapid-keys
