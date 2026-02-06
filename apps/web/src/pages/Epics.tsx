@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { FolderKanban, Plus, Search, MoreVertical, CheckCircle2, Circle, AlertCircle, X, Edit2 } from 'lucide-react'
-import { API_URL } from '../hooks/useEvents'
+
+// Use relative URL in development (hits Vite proxy), absolute in production
+const API_URL = import.meta.env.PROD 
+  ? (import.meta.env.VITE_API_URL || '') 
+  : '';
 
 interface Epic {
   id: string

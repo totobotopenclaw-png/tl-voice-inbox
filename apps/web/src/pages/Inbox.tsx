@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Check, Circle, Clock, AlertCircle, Search, Loader2, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { API_URL } from '../hooks/useEvents'
+
+// Use relative URL in development (hits Vite proxy), absolute in production
+const API_URL = import.meta.env.PROD 
+  ? (import.meta.env.VITE_API_URL || '') 
+  : '';
 
 interface Action {
   id: string
