@@ -106,8 +106,10 @@ export class ExtractWorker {
         };
       }
 
+      // Step 4b: No candidates found - extraction will handle via suggested_new_epic
+
       // Step 5: Build context for LLM
-      const resolvedEpic = candidates[0]?.epic || null;
+      let resolvedEpic = candidates[0]?.epic || null;
       // Ensure epic has all required fields for the context
       const epicForContext = resolvedEpic ? {
         id: resolvedEpic.id,
@@ -139,7 +141,7 @@ export class ExtractWorker {
       const output = extractionResult.data;
 
       // Step 7: If extraction marked needs_review
-      if (output.needs_review) {
+      if (output.needs_review && !output.suggested_new_epic) {
         await this.storeCandidates(job.eventId, candidates);
         eventsRepository.updateStatus(job.eventId, 'needs_review', 'LLM flagged for review');
         
@@ -157,6 +159,25 @@ export class ExtractWorker {
             llmFlagged: true,
           },
         };
+      }
+
+      // Step 7b: Auto-create epic if suggested by LLM
+      if (output.suggested_new_epic && !resolvedEpic) {
+        console.log(`[ExtractWorker] Auto-creating epic: ${output.suggested_new_epic.title}`);
+        const newEpic = epicsRepository.create(
+          output.suggested_new_epic.title,
+          output.suggested_new_epic.description
+        );
+        
+        // Add aliases if provided
+        if (output.suggested_new_epic.aliases?.length > 0) {
+          for (const alias of output.suggested_new_epic.aliases) {
+            epicsRepository.addAlias(newEpic.id, alias);
+          }
+        }
+        
+        resolvedEpic = newEpic;
+        console.log(`[ExtractWorker] Created epic ${newEpic.id}: ${newEpic.title}`);
       }
 
       // Step 8: Persist projections (idempotent by source_event_id)

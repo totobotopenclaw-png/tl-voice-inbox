@@ -81,11 +81,19 @@ const EmailDraftSchema = z.object({
   body: z.union([z.string(), z.null()]).transform(val => val ?? '').default(''),
 });
 
+// Suggested new epic schema (for auto-creation)
+const SuggestedNewEpicSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(1000).default(''),
+  aliases: z.array(z.string()).default([]),
+});
+
 // Main extraction output schema
 export const ExtractionOutputSchema = z.object({
   labels: z.array(z.string()).default([]),
   resolved_epic: EpicReferenceSchema.nullable().default(null),
   epic_mentions: z.array(EpicMentionSchema).default([]),
+  suggested_new_epic: SuggestedNewEpicSchema.nullable().optional(),
   new_actions: z.array(ActionSchema).default([]),
   new_deadlines: z.array(DeadlineSchema).default([]),
   blockers: z.array(BlockerSchema).default([]),

@@ -50,6 +50,7 @@ const JSON_SCHEMA = `{
   "labels": ["EpicUpdate","KnowledgeNote","ActionItem","Decision","Blocker","Issue"],
   "resolved_epic": {"epic_id":"uuid-or-null","confidence":0.8},
   "epic_mentions": [{"name":"string","confidence":0.5}],
+  "suggested_new_epic": {"title":"string","description":"string","aliases":["string"]},
   "new_actions": [{"type":"follow_up|deadline|email","title":"string","priority":"P0|P1|P2","due_at":"ISO8601-or-null","mentions":["string"],"body":"string"}],
   "new_deadlines": [{"title":"string","priority":"P0|P1","due_at":"ISO8601"}],
   "blockers": [{"description":"string"}],
@@ -90,7 +91,8 @@ LABELS (include all that apply):
 EPIC ASSIGNMENT:
 - If confident about which epic this belongs to, set resolved_epic
 - If multiple epics mentioned, list them in epic_mentions
-- If uncertain or could be multiple epics, set needs_review: true
+- If NO existing epic matches but content describes a new project/topic, set suggested_new_epic with title, description, and aliases
+- If uncertain between multiple existing epics, set needs_review: true
 
 ACTION EXTRACTION:
 - "follow_up": General task without specific deadline
