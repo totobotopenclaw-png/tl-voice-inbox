@@ -88,12 +88,28 @@ const SuggestedNewEpicSchema = z.object({
   aliases: z.array(z.string()).default([]),
 });
 
+// Epic split item - for splitting content by epic
+const EpicSplitSchema = z.object({
+  epic_id: z.string().optional(),
+  epic_name: z.string(),
+  content_summary: z.string(),
+  actions: z.array(ActionSchema).default([]),
+  deadlines: z.array(DeadlineSchema).default([]),
+  knowledge: z.array(KnowledgeItemSchema).default([]),
+  blockers: z.array(BlockerSchema).default([]),
+  dependencies: z.array(DependencySchema).default([]),
+  issues: z.array(IssueSchema).default([]),
+});
+
 // Main extraction output schema
 export const ExtractionOutputSchema = z.object({
   labels: z.array(z.string()).default([]),
   resolved_epic: EpicReferenceSchema.nullable().default(null),
+  resolved_epics: z.array(EpicReferenceSchema).default([]), // Support for multiple epics
   epic_mentions: z.array(EpicMentionSchema).default([]),
   suggested_new_epic: SuggestedNewEpicSchema.nullable().optional(),
+  suggested_new_epics: z.array(SuggestedNewEpicSchema).default([]), // Support for multiple new epics
+  epic_splits: z.array(EpicSplitSchema).default([]), // Split content by epic
   new_actions: z.array(ActionSchema).default([]),
   new_deadlines: z.array(DeadlineSchema).default([]),
   blockers: z.array(BlockerSchema).default([]),

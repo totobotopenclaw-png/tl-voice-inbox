@@ -48,9 +48,10 @@ export interface ExtractionContext {
 // JSON schema for the extraction output (compact version to reduce truncation)
 const JSON_SCHEMA = `{
   "labels": ["EpicUpdate","KnowledgeNote","ActionItem","Decision","Blocker","Issue"],
-  "resolved_epic": {"epic_id":"uuid-or-null","confidence":0.8},
+  "resolved_epics": [{"epic_id":"uuid","confidence":0.8}],
   "epic_mentions": [{"name":"string","confidence":0.5}],
-  "suggested_new_epic": {"title":"string","description":"string","aliases":["string"]},
+  "suggested_new_epics": [{"title":"string","description":"string","aliases":["string"]}],
+  "epic_splits": [{"epic_name":"string","content_summary":"string","actions":[],"deadlines":[],"knowledge":[],"blockers":[],"dependencies":[],"issues":[]}],
   "new_actions": [{"type":"follow_up|deadline|email","title":"string","priority":"P0|P1|P2","due_at":"ISO8601-or-null","mentions":["string"],"body":"string"}],
   "new_deadlines": [{"title":"string","priority":"P0|P1","due_at":"ISO8601"}],
   "blockers": [{"description":"string"}],
@@ -89,19 +90,43 @@ LABELS (include all that apply):
 - Issue: Problem identified
 
 EPIC ASSIGNMENT - MANDATORY RULES:
-1. Scan transcript for project names, code names, or topics (e.g., "CP39", "API v2", "Mobile App", "Project Alpha")
-2. If transcript mentions creating/starting/working on a NEW project/epic → set suggested_new_epic
-3. If transcript mentions specific code names (CP39, CP38, etc.) and NO existing epic matches → set suggested_new_epic
-4. suggested_new_epic MUST include: title (with code name), description (what it's about), aliases (code names)
-5. DO NOT set needs_review=true when suggesting a new epic - the system will create it automatically
+1. Scan transcript for ALL project names, code names, or topics mentioned (e.g., "CP39", "CP38", "API v2", "Mobile App")
+2. The transcript MAY mention MULTIPLE epics in the same recording
+3. For EACH epic mentioned, either:
+   - Add to "resolved_epics" if it matches an existing epic
+   - Add to "suggested_new_epics" if it's a new project that needs to be created
+4. You can assign the SAME actions/knowledge to MULTIPLE epics if the content applies to both
+5. DO NOT set needs_review=true when epics are clearly identified - the system will handle them automatically
 
-WHEN TO CREATE suggested_new_epic:
-- "Crear épica CP39..." → {"suggested_new_epic": {"title": "CP39 - Política de Cancelación", "description": "Sistema de gestión de políticas de cancelación", "aliases": ["CP39", "cancelación", "política"]}}
-- "Trabajar en el proyecto Mobile..." → {"suggested_new_epic": {"title": "Mobile App", "description": "Aplicación móvil", "aliases": ["Mobile", "App"]}}
-- "Para la épica de reservas CP38..." → {"suggested_new_epic": {"title": "CP38 - Sistema de Reservas", "description": "Gestión de reservas de hotel", "aliases": ["CP38", "reservas"]}}
+MULTI-EPIC EXAMPLE:
+Transcript: "Para la CP39 necesito revisar la política de cancelación. También para la CP38 hay que arreglar el sistema de reservas."
+Output: {
+  "resolved_epics": [
+    {"epic_id": "existing-cp39-id", "confidence": 0.9},
+    {"epic_id": "existing-cp38-id", "confidence": 0.9}
+  ],
+  "new_actions": [
+    {"type": "follow_up", "title": "Revisar política de cancelación CP39", "priority": "P1", "epic_ids": ["cp39-id"]},
+    {"type": "follow_up", "title": "Arreglar sistema de reservas CP38", "priority": "P1", "epic_ids": ["cp38-id"]}
+  ]
+}
 
-WHEN NOT TO CREATE (use resolved_epic):
-- Only when transcript CLEARLY references an existing epic by exact name/alias
+EPIC SPLITTING (OPTIONAL - for complex multi-epic notes):
+If a transcript contains clearly separated content for different epics, you can use "epic_splits" to divide the content:
+{
+  "epic_splits": [
+    {
+      "epic_name": "CP39",
+      "content_summary": "Revisión de política de cancelación",
+      "actions": [{"type": "follow_up", "title": "Revisar política", "priority": "P1"}]
+    },
+    {
+      "epic_name": "CP38",
+      "content_summary": "Fix sistema de reservas",
+      "actions": [{"type": "follow_up", "title": "Arreglar reservas", "priority": "P1"}]
+    }
+  ]
+}
 
 ACTION EXTRACTION:
 - "follow_up": General task without specific deadline
