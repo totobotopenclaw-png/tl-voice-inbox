@@ -348,6 +348,20 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_dead_letter_type ON dead_letter_queue(type);
       CREATE INDEX IF NOT EXISTS idx_dead_letter_at ON dead_letter_queue(dead_letter_at);
     `
+  },
+  {
+    id: '006_add_jobs_cancelled_at',
+    name: 'Add cancelled_at column to jobs table',
+    sql: `
+      -- Add cancelled_at column for job cancellation tracking
+      ALTER TABLE jobs ADD COLUMN cancelled_at TEXT;
+      ALTER TABLE jobs ADD COLUMN cancelled_by TEXT;
+      ALTER TABLE jobs ADD COLUMN dead_letter_at TEXT;
+      ALTER TABLE jobs ADD COLUMN dead_letter_reason TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_jobs_cancelled_at ON jobs(cancelled_at) WHERE cancelled_at IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_jobs_dead_letter_at ON jobs(dead_letter_at) WHERE dead_letter_at IS NOT NULL;
+    `
   }
 ];
 
