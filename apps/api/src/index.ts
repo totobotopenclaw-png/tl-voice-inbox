@@ -22,19 +22,23 @@ const server = Fastify({
   },
 });
 
-// Add CORS headers for all routes
+// Add CORS headers for all routes - allow any origin for LAN access
 server.addHook('onSend', async (request, reply, payload) => {
-  reply.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  const origin = request.headers.origin || '*';
+  reply.header('Access-Control-Allow-Origin', origin);
   reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  reply.header('Access-Control-Allow-Credentials', 'true');
   return payload;
 });
 
 // Handle OPTIONS preflight requests
 server.options('*', async (request, reply) => {
-  reply.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  const origin = request.headers.origin || '*';
+  reply.header('Access-Control-Allow-Origin', origin);
   reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  reply.header('Access-Control-Allow-Credentials', 'true');
   reply.status(204).send();
 });
 
