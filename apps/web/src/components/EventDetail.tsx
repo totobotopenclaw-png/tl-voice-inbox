@@ -1,4 +1,9 @@
-import { useEventDetail, API_URL } from '../hooks/useEvents';
+import { useEventDetail } from '../hooks/useEvents';
+
+// Use relative URL in development (hits Vite proxy), absolute in production
+const API_URL = import.meta.env.PROD 
+  ? (import.meta.env.VITE_API_URL || '') 
+  : '';
 import { 
   X, 
   Clock, 
