@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Use relative URL in development (hits Vite proxy), absolute in production
+const API_URL = import.meta.env.PROD 
+  ? (import.meta.env.VITE_API_URL || '') 
+  : '';
 
 export interface Event {
   id: string;
@@ -57,7 +60,11 @@ export function useEvents(limit: number = 50) {
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/events?limit=${limit}`);
+      const url = `${API_URL}/api/events?limit=${limit}`;
+      console.log('[useEvents] Fetching:', url);
+      
+      const response = await fetch(url);
+      console.log('[useEvents] Response:', response.status);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch events: ${response.status}`);
@@ -66,6 +73,7 @@ export function useEvents(limit: number = 50) {
       const data: EventsResponse = await response.json();
       setEvents(data.events);
     } catch (err) {
+      console.error('[useEvents] Error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);

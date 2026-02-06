@@ -103,8 +103,14 @@ export function useRecording() {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
 
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/events`, {
+      // Use relative URL in development (hits Vite proxy), absolute in production
+      const apiUrl = import.meta.env.PROD 
+        ? (import.meta.env.VITE_API_URL || '') 
+        : '';
+      const url = `${apiUrl}/api/events`;
+      console.log('[useRecording] Uploading to:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         body: formData,
       });

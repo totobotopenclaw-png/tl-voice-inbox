@@ -28,7 +28,11 @@ export function useActions(options: UseActionsOptions = {}) {
       if (options.type) params.set('type', options.type);
       params.set('limit', '50');
 
-      const response = await fetch(`${API_URL}/api/actions?${params}`);
+      const url = `${API_URL}/api/actions?${params}`;
+      console.log('[useActions] Fetching:', url);
+      
+      const response = await fetch(url);
+      console.log('[useActions] Response:', response.status, response.statusText);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch actions: ${response.status}`);
@@ -37,6 +41,7 @@ export function useActions(options: UseActionsOptions = {}) {
       const data = await response.json();
       setActions(data.actions || []);
     } catch (err) {
+      console.error('[useActions] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch actions');
     } finally {
       setLoading(false);
