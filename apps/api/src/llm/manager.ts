@@ -467,6 +467,7 @@ class LLMManager {
       temperature?: number;
       maxTokens?: number;
       responseFormat?: { type: string };
+      timeoutMs?: number;
     } = {}
   ): Promise<unknown> {
     if (!this.isServerHealthy()) {
@@ -475,6 +476,11 @@ class LLMManager {
 
     const url = `${this.getServerUrl()}/v1/chat/completions`;
     
+    // Calculate dynamic timeout based on content length (longer transcripts need more time)
+    const contentLength = messages.reduce((sum, m) => sum + m.content.length, 0);
+    const baseTimeout = options.timeoutMs || parseInt(process.env.LLM_TIMEOUT_MS || '120000', 10);
+    const dynamicTimeout = Math.max(baseTimeout, Math.min(contentLength * 10, 600000)); // Max 10 min
+    
     const body = {
       messages,
       temperature: options.temperature ?? 0.1, // Low temperature for structured output
@@ -482,13 +488,15 @@ class LLMManager {
       ...(options.responseFormat && { response_format: options.responseFormat }),
     };
 
+    console.log(`[LLMManager] Calling chat completions with ${contentLength} chars, timeout: ${dynamicTimeout}ms`);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120000), // 2 minute timeout
+      signal: AbortSignal.timeout(dynamicTimeout),
     });
 
     if (!response.ok) {

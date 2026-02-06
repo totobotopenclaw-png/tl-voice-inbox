@@ -391,6 +391,26 @@ export class ExtractWorker {
     return context;
   }
 
+  // Maximum transcript length for extraction (characters)
+  private readonly MAX_TRANSCRIPT_LENGTH = 8000;
+
+  /**
+   * Truncate transcript if too long, keeping beginning and end
+   */
+  private truncateTranscript(transcript: string): string {
+    if (transcript.length <= this.MAX_TRANSCRIPT_LENGTH) {
+      return transcript;
+    }
+
+    const keepLength = Math.floor(this.MAX_TRANSCRIPT_LENGTH / 2);
+    const beginning = transcript.slice(0, keepLength);
+    const end = transcript.slice(-keepLength);
+    
+    console.log(`[ExtractWorker] Transcript truncated from ${transcript.length} to ${beginning.length + end.length + 50} chars`);
+    
+    return `${beginning}\n\n[... ${transcript.length - (keepLength * 2)} characters truncated ...]\n\n${end}`;
+  }
+
   /**
    * Run LLM extraction with retry logic
    */
@@ -407,8 +427,18 @@ export class ExtractWorker {
     recentEvents: { id: string; snippet: string; createdAt: string }[];
     relatedKnowledge: { id: string; title: string; kind: string; body_md: string }[];
   }): Promise<{ success: true; data: ValidatedExtractionOutput } | { success: false; error: string }> {
-    const userPrompt = buildExtractionPrompt(context);
+    // Truncate transcript if too long
+    const truncatedContext = {
+      ...context,
+      transcript: this.truncateTranscript(context.transcript),
+    };
+
+    const userPrompt = buildExtractionPrompt(truncatedContext);
     const systemPrompt = getSystemPrompt();
+
+    // Calculate timeout based on prompt length
+    const promptLength = userPrompt.length;
+    const timeoutMs = Math.min(600000, Math.max(120000, promptLength * 15)); // 15ms per char, min 2min, max 10min
 
     let lastError: string | null = null;
     let lastResponse: string | null = null;
@@ -425,10 +455,13 @@ export class ExtractWorker {
         // DEBUG: Log the prompt being sent
         console.log(`[ExtractWorker] Sending prompt (${messages[1].content.length} chars)`);
 
+        console.log(`[ExtractWorker] Using timeout: ${timeoutMs}ms`);
+
         const response = await llmManager.chatCompletions(messages, {
           temperature: 0.1,
           maxTokens: 4096,
           responseFormat: { type: 'json_object' },
+          timeoutMs,
         }) as { choices?: Array<{ message?: { content?: string } }> };
 
         const content = response.choices?.[0]?.message?.content;
