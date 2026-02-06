@@ -478,8 +478,10 @@ class LLMManager {
     
     // Calculate dynamic timeout based on content length (longer transcripts need more time)
     const contentLength = messages.reduce((sum, m) => sum + m.content.length, 0);
-    const baseTimeout = options.timeoutMs || parseInt(process.env.LLM_TIMEOUT_MS || '120000', 10);
-    const dynamicTimeout = Math.max(baseTimeout, Math.min(contentLength * 10, 600000)); // Max 10 min
+    const baseTimeout = options.timeoutMs || parseInt(process.env.LLM_TIMEOUT_MS || '300000', 10); // 5 min default
+    // Use 20ms per char for longer content, with higher max (20 min) for very long transcripts
+    const calculatedTimeout = Math.max(baseTimeout, contentLength * 20);
+    const dynamicTimeout = Math.min(calculatedTimeout, 1200000); // Max 20 min
     
     const body = {
       messages,
@@ -490,21 +492,29 @@ class LLMManager {
 
     console.log(`[LLMManager] Calling chat completions with ${contentLength} chars, timeout: ${dynamicTimeout}ms`);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(dynamicTimeout),
-    });
+    // Use AbortController for better timeout control
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), dynamicTimeout);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`LLM API error: ${response.status} ${errorText}`);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`LLM API error: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return response.json();
   }
 }
 

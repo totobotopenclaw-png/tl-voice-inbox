@@ -436,10 +436,6 @@ export class ExtractWorker {
     const userPrompt = buildExtractionPrompt(truncatedContext);
     const systemPrompt = getSystemPrompt();
 
-    // Calculate timeout based on prompt length
-    const promptLength = userPrompt.length;
-    const timeoutMs = Math.min(600000, Math.max(120000, promptLength * 15)); // 15ms per char, min 2min, max 10min
-
     let lastError: string | null = null;
     let lastResponse: string | null = null;
 
@@ -455,13 +451,12 @@ export class ExtractWorker {
         // DEBUG: Log the prompt being sent
         console.log(`[ExtractWorker] Sending prompt (${messages[1].content.length} chars)`);
 
-        console.log(`[ExtractWorker] Using timeout: ${timeoutMs}ms`);
-
+        // LLMManager will calculate dynamic timeout based on content length
+        // Base timeout: 5min, scales with content, max 20min
         const response = await llmManager.chatCompletions(messages, {
           temperature: 0.1,
           maxTokens: 4096,
           responseFormat: { type: 'json_object' },
-          timeoutMs,
         }) as { choices?: Array<{ message?: { content?: string } }> };
 
         const content = response.choices?.[0]?.message?.content;
