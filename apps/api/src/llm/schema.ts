@@ -39,7 +39,7 @@ const ActionSchema = z.object({
   priority: PrioritySchema,
   due_at: z.string().datetime().nullable().optional(),
   mentions: z.array(z.string()).default([]),
-  body: z.string().default(''),
+  body: z.union([z.string(), z.null()]).transform(val => val ?? '').default(''),
 });
 
 // Deadline schema (for P0/P1 deadlines)
@@ -72,13 +72,13 @@ const KnowledgeItemSchema = z.object({
   title: z.string().min(1).max(500),
   kind: KnowledgeKindSchema,
   tags: z.array(z.string()).default([]),
-  body_md: z.string().min(1).max(10000),
+  body_md: z.union([z.string(), z.null()]).transform(val => val ?? '').default(''),
 });
 
 // Email draft schema
 const EmailDraftSchema = z.object({
   subject: z.string().min(1).max(500),
-  body: z.string().min(1).max(10000),
+  body: z.union([z.string(), z.null()]).transform(val => val ?? '').default(''),
 });
 
 // Main extraction output schema
