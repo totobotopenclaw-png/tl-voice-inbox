@@ -17,7 +17,8 @@ import {
   RotateCw,
   FolderKanban,
   ArrowRight,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import { useState } from 'react';
@@ -93,9 +94,10 @@ const jobStatusConfig = {
 };
 
 export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
-  const { event, loading, error, refresh } = useEventDetail(eventId);
+  const { event, loading, error, refresh, retry } = useEventDetail(eventId);
   const [selectedEpic, setSelectedEpic] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const handleResolve = async (epicId: string | null) => {
     setResolving(true);
@@ -116,6 +118,17 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
       alert('Failed to resolve: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setResolving(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      await retry();
+    } catch (err) {
+      alert('Failed to retry: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -306,6 +319,24 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
             <div className="bg-yellow-950/30 border border-yellow-900 rounded-lg p-3 text-sm text-yellow-200">
               {event.statusReason}
             </div>
+          </div>
+        )}
+
+        {/* Retry Button for Failed Events */}
+        {event.status === 'failed' && (
+          <div className="space-y-2">
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              className="w-full px-4 py-3 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-sm font-medium text-white transition-colors flex items-center justify-center gap-2"
+            >
+              {retrying && <Loader2 size={16} className="animate-spin" />}
+              <RefreshCw size={16} />
+              {retrying ? 'Retrying...' : 'Retry Processing'}
+            </button>
+            <p className="text-xs text-slate-500 text-center">
+              This will re-run the extraction with updated settings
+            </p>
           </div>
         )}
 

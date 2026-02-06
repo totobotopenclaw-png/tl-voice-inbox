@@ -345,6 +345,71 @@ export async function eventsRoutes(server: FastifyInstance): Promise<void> {
     };
   });
   
+  // POST /api/events/:id/retry - Retry a failed event
+  server.post<{ Params: { id: string } }>('/:id/retry', async (request, reply) => {
+    const { id } = request.params;
+    
+    const event = db.prepare('SELECT * FROM events WHERE id = ?').get(id) as
+      | { id: string; status: string; transcript: string | null; audio_path: string | null }
+      | undefined;
+    
+    if (!event) {
+      reply.status(404);
+      return { error: 'Event not found' };
+    }
+    
+    // Can only retry events in failed status
+    if (event.status !== 'failed') {
+      reply.status(400);
+      return { error: `Cannot retry event with status '${event.status}'. Only 'failed' events can be retried.` };
+    }
+    
+    // Clear any existing failed jobs for this event
+    db.prepare(`
+      DELETE FROM jobs 
+      WHERE event_id = ? 
+        AND status = 'failed'
+    `).run(id);
+    
+    let job;
+    
+    // If has transcript, re-enqueue extract job
+    if (event.transcript) {
+      db.prepare(`
+        UPDATE events 
+        SET status = 'transcribed',
+            status_reason = 'Retried',
+            updated_at = datetime('now')
+        WHERE id = ?
+      `).run(id);
+      
+      job = enqueue(id, 'extract', { transcript: event.transcript });
+      console.log(`[Events] Retried event ${id} with extract job ${job.id}`);
+    } 
+    // If has audio but no transcript, re-enqueue STT job
+    else if (event.audio_path) {
+      db.prepare(`
+        UPDATE events 
+        SET status = 'queued',
+            status_reason = 'Retried',
+            updated_at = datetime('now')
+        WHERE id = ?
+      `).run(id);
+      
+      job = enqueue(id, 'stt', { audioPath: event.audio_path, language: 'es' });
+      console.log(`[Events] Retried event ${id} with STT job ${job.id}`);
+    } else {
+      reply.status(400);
+      return { error: 'Event has no transcript or audio to retry' };
+    }
+    
+    return {
+      eventId: id,
+      jobId: job.id,
+      status: event.transcript ? 'transcribed' : 'queued',
+    };
+  });
+  
   // POST /api/events/:id/match-epics - Test endpoint for epic matching (for debugging)
   server.post<{ Params: { id: string } }>('/:id/match-epics', async (request, reply) => {
     const { id } = request.params;

@@ -170,10 +170,42 @@ export function useEventDetail(eventId: string | null) {
     return () => clearInterval(interval);
   }, [event, fetchEvent]);
 
+  const retry = useCallback(async () => {
+    if (!eventId) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/events/${eventId}/retry`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || `Failed to retry event: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[useEventDetail] Retry successful:', data);
+      
+      // Refresh event data
+      await fetchEvent();
+      
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId, fetchEvent]);
+
   return {
     event,
     loading,
     error,
     refresh: fetchEvent,
+    retry,
   };
 }
