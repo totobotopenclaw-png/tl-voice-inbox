@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Check, Circle, Clock, AlertCircle, Search, Loader2, RefreshCw } from 'lucide-react'
+import { Check, Circle, Clock, AlertCircle, Search, Loader2, RefreshCw, Plus, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 // Use relative URL in development (hits Vite proxy), absolute in production
@@ -44,6 +44,16 @@ export function Inbox() {
   const [filter, setFilter] = useState<'all' | 'open' | 'done'>('open')
   const [searchQuery, setSearchQuery] = useState('')
   const [toggling, setToggling] = useState<Set<string>>(new Set())
+  
+  // Create modal state
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newAction, setNewAction] = useState({
+    title: '',
+    body: '',
+    type: 'follow_up' as const,
+    priority: 'P2' as const,
+  })
 
   const fetchActions = useCallback(async () => {
     setLoading(true)
@@ -92,6 +102,62 @@ export function Inbox() {
     }
   }
 
+  const handleCreateAction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newAction.title.trim()) return
+    
+    setCreating(true)
+    try {
+      // Use a dummy event ID for manual actions
+      const dummyEventId = 'manual-' + Date.now()
+      
+      const response = await fetch(`${API_URL}/api/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceEventId: dummyEventId,
+          type: newAction.type,
+          title: newAction.title,
+          body: newAction.body || null,
+          priority: newAction.priority,
+        }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create action')
+      }
+      
+      const data = await response.json()
+      
+      // Add to list
+      setActions(prev => [{
+        id: data.id,
+        sourceEventId: dummyEventId,
+        epicId: null,
+        type: newAction.type,
+        title: newAction.title,
+        body: newAction.body,
+        priority: newAction.priority,
+        status: 'open',
+        dueAt: null,
+        completedAt: null,
+        createdAt: data.createdAt,
+        updatedAt: data.createdAt,
+        epicTitle: null,
+        mentions: [],
+      }, ...prev])
+      
+      // Reset form
+      setNewAction({ title: '', body: '', type: 'follow_up', priority: 'P2' })
+      setShowCreateModal(false)
+    } catch (err) {
+      alert('Failed to create: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const filteredActions = actions.filter((action) => {
     if (filter === 'open' && action.status !== 'open') return false
     if (filter === 'done' && action.status !== 'done') return false
@@ -104,6 +170,13 @@ export function Inbox() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-100">Inbox</h1>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium text-white transition-colors"
+          >
+            <Plus size={16} />
+            Add Action
+          </button>
           <button
             onClick={fetchActions}
             disabled={loading}
@@ -240,6 +313,92 @@ export function Inbox() {
           )
         })}
       </div>
+
+      {/* Create Action Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-100">Add Action</h2>
+              <button 
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-500 hover:text-slate-300"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateAction} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Title *</label>
+                <input
+                  type="text"
+                  value={newAction.title}
+                  onChange={(e) => setNewAction({ ...newAction, title: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600"
+                  placeholder="e.g., Review deployment pipeline"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
+                <textarea
+                  value={newAction.body}
+                  onChange={(e) => setNewAction({ ...newAction, body: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600 h-20"
+                  placeholder="Optional details..."
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Type</label>
+                  <select
+                    value={newAction.type}
+                    onChange={(e) => setNewAction({ ...newAction, type: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600"
+                  >
+                    <option value="follow_up">Follow-up</option>
+                    <option value="deadline">Deadline</option>
+                    <option value="email">Email</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Priority</label>
+                  <select
+                    value={newAction.priority}
+                    onChange={(e) => setNewAction({ ...newAction, priority: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600"
+                  >
+                    <option value="P0">P0 - Critical</option>
+                    <option value="P1">P1 - Important</option>
+                    <option value="P2">P2 - Normal</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium text-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || !newAction.title.trim()}
+                  className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-sm font-medium text-white transition-colors"
+                >
+                  {creating ? 'Creating...' : 'Create Action'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

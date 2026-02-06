@@ -1,6 +1,11 @@
 import { useState } from 'react'
-import { BookOpen, Plus, Search, Tag, FileText, Lightbulb, GitBranch, Loader2 } from 'lucide-react'
+import { BookOpen, Plus, Search, Tag, FileText, Lightbulb, GitBranch, Loader2, X } from 'lucide-react'
 import { useKnowledge } from '../hooks/useKnowledge'
+
+// Use relative URL in development (hits Vite proxy), absolute in production
+const API_URL = import.meta.env.PROD 
+  ? (import.meta.env.VITE_API_URL || '') 
+  : '';
 
 const kindIcons: Record<string, React.ElementType> = {
   tech: FileText,
@@ -18,16 +23,68 @@ export function Knowledge() {
   const [filter, setFilter] = useState<'all' | 'tech' | 'process' | 'decision'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   
-  const { items, loading, error } = useKnowledge({
+  const { items, loading, error, refresh } = useKnowledge({
     kind: filter === 'all' ? undefined : filter,
     search: searchQuery || undefined,
   })
+  
+  // Create modal state
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newItem, setNewItem] = useState({
+    title: '',
+    bodyMd: '',
+    kind: 'tech' as const,
+    tags: '',
+  })
+
+  const handleCreateKnowledge = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newItem.title.trim()) return
+    
+    setCreating(true)
+    try {
+      const dummyEventId = 'manual-' + Date.now()
+      const tags = newItem.tags.split(',').map(t => t.trim()).filter(Boolean)
+      
+      const response = await fetch(`${API_URL}/api/knowledge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceEventId: dummyEventId,
+          title: newItem.title,
+          bodyMd: newItem.bodyMd,
+          kind: newItem.kind,
+          tags,
+        }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create knowledge')
+      }
+      
+      // Refresh list
+      refresh()
+      
+      // Reset form
+      setNewItem({ title: '', bodyMd: '', kind: 'tech', tags: '' })
+      setShowCreateModal(false)
+    } catch (err) {
+      alert('Failed to create: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-100">Knowledge Base</h1>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium text-white transition-colors">
+        <button 
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium text-white transition-colors"
+        >
           <Plus size={16} />
           Add Note
         </button>
@@ -136,6 +193,90 @@ export function Knowledge() {
           )
         })}
       </div>
+
+      {/* Create Knowledge Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-100">Add Knowledge Note</h2>
+              <button 
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-500 hover:text-slate-300"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateKnowledge} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Title *</label>
+                <input
+                  type="text"
+                  value={newItem.title}
+                  onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600"
+                  placeholder="e.g., Database Connection Pooling"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Content (Markdown)</label>
+                <textarea
+                  value={newItem.bodyMd}
+                  onChange={(e) => setNewItem({ ...newItem, bodyMd: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600 h-40 font-mono text-sm"
+                  placeholder="# Heading&#10;&#10;Your content here..."
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Type</label>
+                  <select
+                    value={newItem.kind}
+                    onChange={(e) => setNewItem({ ...newItem, kind: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600"
+                  >
+                    <option value="tech">Technical</option>
+                    <option value="process">Process</option>
+                    <option value="decision">Decision (ADR)</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Tags (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={newItem.tags}
+                    onChange={(e) => setNewItem({ ...newItem, tags: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-primary-600"
+                    placeholder="database, performance"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium text-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || !newItem.title.trim()}
+                  className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-sm font-medium text-white transition-colors"
+                >
+                  {creating ? 'Creating...' : 'Add Note'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
