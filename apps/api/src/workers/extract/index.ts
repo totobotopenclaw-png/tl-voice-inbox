@@ -140,6 +140,14 @@ export class ExtractWorker {
 
       const output = extractionResult.data;
 
+      // DEBUG: Log the full output to see what LLM returned
+      console.log('[ExtractWorker] LLM Output:', JSON.stringify({
+        resolved_epic: output.resolved_epic,
+        suggested_new_epic: output.suggested_new_epic,
+        needs_review: output.needs_review,
+        new_actions_count: output.new_actions.length,
+      }, null, 2));
+
       // Step 7: Auto-create epic if suggested by LLM (even if needs_review is true)
       if (output.suggested_new_epic && !resolvedEpic) {
         console.log(`[ExtractWorker] Auto-creating epic: ${output.suggested_new_epic.title}`);
