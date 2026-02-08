@@ -25,7 +25,7 @@ export function Dashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Left Column - Recording */}
-          <div className="space-y-4 sm:space-y-6 order-1">
+          <div className="flex flex-col space-y-4 sm:space-y-6 order-1">
             {/* Recording Card - Larger touch target on mobile, mt-auto pushes it down */}
             <div className="bg-slate-900 rounded-xl p-6 sm:p-8 border border-slate-800 mt-auto sm:mt-0">
               <div className="flex flex-col items-center">
