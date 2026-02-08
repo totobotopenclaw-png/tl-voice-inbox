@@ -8,8 +8,8 @@ export function Dashboard() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <div className="max-w-6xl mx-auto px-4 py-4 sm:py-8">
+    <div className="min-h-screen bg-slate-950 pt-safe">
+      <div className="max-w-6xl mx-auto px-4 py-4 sm:py-8 safe-area-inset-top">
         {/* Header - Mobile Optimized */}
         <header className="mb-4 sm:mb-8">
           <div className="flex items-center gap-3 mb-2">
