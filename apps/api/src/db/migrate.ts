@@ -362,6 +362,25 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_jobs_cancelled_at ON jobs(cancelled_at) WHERE cancelled_at IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_jobs_dead_letter_at ON jobs(dead_letter_at) WHERE dead_letter_at IS NOT NULL;
     `
+  },
+  {
+    id: '007_blocker_enhancements',
+    name: 'Add staleness tracking fields to blockers and dependencies',
+    sql: `
+      -- Blocker enhancements for follow-up tracking
+      ALTER TABLE blockers ADD COLUMN owner TEXT;
+      ALTER TABLE blockers ADD COLUMN eta TEXT;
+      ALTER TABLE blockers ADD COLUMN last_checked_at TEXT;
+      ALTER TABLE blockers ADD COLUMN next_follow_up_at TEXT;
+      ALTER TABLE blockers ADD COLUMN escalation_level INTEGER DEFAULT 0;
+
+      -- Dependency enhancements for follow-up tracking
+      ALTER TABLE dependencies ADD COLUMN owner TEXT;
+      ALTER TABLE dependencies ADD COLUMN eta TEXT;
+      ALTER TABLE dependencies ADD COLUMN last_checked_at TEXT;
+      ALTER TABLE dependencies ADD COLUMN next_follow_up_at TEXT;
+      ALTER TABLE dependencies ADD COLUMN escalation_level INTEGER DEFAULT 0;
+    `
   }
 ];
 

@@ -7,3 +7,5 @@ export { epicsRoutes } from './epics.js';
 export { pushRoutes } from './push.js';
 export { actionsRoutes } from './actions.js';
 export { knowledgeRoutes } from './knowledge.js';
+export { dashboardRoutes } from './dashboard.js';
+export { blockersRoutes, dependenciesRoutes } from './blockers.js';

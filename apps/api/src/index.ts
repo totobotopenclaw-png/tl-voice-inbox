@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import { db } from './db/connection.js';
 import { migrate } from './db/migrate.js';
-import { searchRoutes, healthRoutes, adminRoutes, llmAdminRoutes, eventsRoutes, epicsRoutes, pushRoutes, actionsRoutes, knowledgeRoutes } from './routes/index.js';
+import { searchRoutes, healthRoutes, adminRoutes, llmAdminRoutes, eventsRoutes, epicsRoutes, pushRoutes, actionsRoutes, knowledgeRoutes, dashboardRoutes, blockersRoutes, dependenciesRoutes } from './routes/index.js';
 import { getWorkerRunner } from './queue/runner.js';
 import { sttWorker } from './workers/stt/index.js';
 import { extractWorker } from './workers/extract/index.js';
@@ -59,6 +59,9 @@ server.register(epicsRoutes, { prefix: '/api/epics' });
 server.register(actionsRoutes, { prefix: '/api/actions' });
 server.register(knowledgeRoutes, { prefix: '/api/knowledge' });
 server.register(pushRoutes, { prefix: '/api/push' });
+server.register(dashboardRoutes, { prefix: '/api/dashboard' });
+server.register(blockersRoutes, { prefix: '/api/blockers' });
+server.register(dependenciesRoutes, { prefix: '/api/dependencies' });
 
 // Initialize and start workers
 async function initializeWorkers(): Promise<void> {

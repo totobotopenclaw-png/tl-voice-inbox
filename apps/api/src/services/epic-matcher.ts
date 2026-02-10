@@ -235,13 +235,28 @@ export function getStoredCandidates(eventId: string): Array<{
  * Get epic snapshot for LLM context
  * Includes: blockers, dependencies, issues, recent actions, aliases
  */
+interface ResolvedItem {
+  id: string;
+  description: string;
+  status: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  owner: string | null;
+}
+
 export function getEpicSnapshot(epicId: string): {
   epic: { id: string; title: string; description: string | null };
   aliases: string[];
-  blockers: Array<{ description: string; status: string }>;
-  dependencies: Array<{ description: string; status: string }>;
-  issues: Array<{ description: string; status: string }>;
+  blockers: Array<{ id: string; description: string; status: string }>;
+  dependencies: Array<{ id: string; description: string; status: string }>;
+  issues: Array<{ id: string; description: string; status: string }>;
   recentActions: Array<{ type: string; title: string; priority: string; completed: boolean }>;
+  history: {
+    resolvedBlockers: ResolvedItem[];
+    resolvedDependencies: ResolvedItem[];
+    resolvedIssues: ResolvedItem[];
+    completedActions: Array<{ id: string; title: string; type: string; priority: string; completedAt: string }>;
+  };
 } | null {
   const epic = db.prepare('SELECT id, title, description FROM epics WHERE id = ?').get(epicId) as
     | { id: string; title: string; description: string | null }
@@ -252,34 +267,66 @@ export function getEpicSnapshot(epicId: string): {
   const aliases = db.prepare('SELECT alias FROM epic_aliases WHERE epic_id = ?').all(epicId) as Array<{ alias: string }>;
   
   const blockers = db.prepare(`
-    SELECT description, status FROM blockers 
+    SELECT id, description, status FROM blockers
     WHERE epic_id = ? AND status = 'open'
     ORDER BY created_at DESC
-    LIMIT 5
-  `).all(epicId) as Array<{ description: string; status: string }>;
-  
+    LIMIT 10
+  `).all(epicId) as Array<{ id: string; description: string; status: string }>;
+
   const dependencies = db.prepare(`
-    SELECT description, status FROM dependencies 
+    SELECT id, description, status FROM dependencies
     WHERE epic_id = ? AND status = 'open'
     ORDER BY created_at DESC
-    LIMIT 5
-  `).all(epicId) as Array<{ description: string; status: string }>;
-  
+    LIMIT 10
+  `).all(epicId) as Array<{ id: string; description: string; status: string }>;
+
   const issues = db.prepare(`
-    SELECT description, status FROM issues 
+    SELECT id, description, status FROM issues
     WHERE epic_id = ? AND status = 'open'
     ORDER BY created_at DESC
-    LIMIT 5
-  `).all(epicId) as Array<{ description: string; status: string }>;
+    LIMIT 10
+  `).all(epicId) as Array<{ id: string; description: string; status: string }>;
   
   const recentActions = db.prepare(`
     SELECT type, title, priority, completed_at IS NOT NULL as completed
-    FROM actions 
-    WHERE epic_id = ?
+    FROM actions
+    WHERE epic_id = ? AND completed_at IS NULL
     ORDER BY created_at DESC
     LIMIT 10
   `).all(epicId) as Array<{ type: string; title: string; priority: string; completed: number }>;
-  
+
+  // History: resolved blockers
+  const resolvedBlockers = db.prepare(`
+    SELECT id, description, status, resolved_at, created_at, owner FROM blockers
+    WHERE epic_id = ? AND status = 'resolved'
+    ORDER BY resolved_at DESC
+    LIMIT 20
+  `).all(epicId) as Array<{ id: string; description: string; status: string; resolved_at: string | null; created_at: string; owner: string | null }>;
+
+  // History: resolved dependencies
+  const resolvedDeps = db.prepare(`
+    SELECT id, description, status, resolved_at, created_at, owner FROM dependencies
+    WHERE epic_id = ? AND status = 'resolved'
+    ORDER BY resolved_at DESC
+    LIMIT 20
+  `).all(epicId) as Array<{ id: string; description: string; status: string; resolved_at: string | null; created_at: string; owner: string | null }>;
+
+  // History: resolved issues (issues table doesn't have owner column)
+  const resolvedIssues = db.prepare(`
+    SELECT id, description, status, resolved_at, created_at FROM issues
+    WHERE epic_id = ? AND status = 'resolved'
+    ORDER BY resolved_at DESC
+    LIMIT 20
+  `).all(epicId) as Array<{ id: string; description: string; status: string; resolved_at: string | null; created_at: string }>;
+
+  // History: completed actions
+  const completedActions = db.prepare(`
+    SELECT id, title, type, priority, completed_at FROM actions
+    WHERE epic_id = ? AND completed_at IS NOT NULL
+    ORDER BY completed_at DESC
+    LIMIT 20
+  `).all(epicId) as Array<{ id: string; title: string; type: string; priority: string; completed_at: string }>;
+
   return {
     epic,
     aliases: aliases.map(a => a.alias),
@@ -290,6 +337,24 @@ export function getEpicSnapshot(epicId: string): {
       ...a,
       completed: Boolean(a.completed),
     })),
+    history: {
+      resolvedBlockers: resolvedBlockers.map(b => ({
+        id: b.id, description: b.description, status: b.status,
+        resolvedAt: b.resolved_at, createdAt: b.created_at, owner: b.owner,
+      })),
+      resolvedDependencies: resolvedDeps.map(d => ({
+        id: d.id, description: d.description, status: d.status,
+        resolvedAt: d.resolved_at, createdAt: d.created_at, owner: d.owner,
+      })),
+      resolvedIssues: resolvedIssues.map(i => ({
+        id: i.id, description: i.description, status: i.status,
+        resolvedAt: i.resolved_at, createdAt: i.created_at, owner: null,
+      })),
+      completedActions: completedActions.map(a => ({
+        id: a.id, title: a.title, type: a.type, priority: a.priority,
+        completedAt: a.completed_at,
+      })),
+    },
   };
 }
 

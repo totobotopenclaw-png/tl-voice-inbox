@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { BookOpen, Plus, Search, Tag, FileText, Lightbulb, GitBranch, Loader2, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { BookOpen, Plus, Search, Tag, FileText, Lightbulb, GitBranch, Loader2, X, FolderKanban } from 'lucide-react'
 import { useKnowledge } from '../hooks/useKnowledge'
 
 // Use relative URL in development (hits Vite proxy), absolute in production
@@ -20,9 +21,10 @@ const kindColors: Record<string, string> = {
 }
 
 export function Knowledge() {
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<'all' | 'tech' | 'process' | 'decision'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   const { items, loading, error, refetch: refresh } = useKnowledge({
     kind: filter === 'all' ? undefined : filter,
     search: searchQuery || undefined,
@@ -44,14 +46,13 @@ export function Knowledge() {
     
     setCreating(true)
     try {
-      const dummyEventId = 'manual-' + Date.now()
       const tags = newItem.tags.split(',').map(t => t.trim()).filter(Boolean)
-      
+
       const response = await fetch(`${API_URL}/api/knowledge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sourceEventId: dummyEventId,
+          sourceEventId: 'manual-entry-sentinel',
           title: newItem.title,
           bodyMd: newItem.bodyMd,
           kind: newItem.kind,
@@ -177,9 +178,23 @@ export function Knowledge() {
                       ))}
                     </div>
 
-                    <div className="text-xs text-slate-600">
-                      {item.epic_id ? (
-                        <span className="text-primary-400">{item.epic_id}</span>
+                    <div className="flex items-center gap-1 text-xs text-slate-600">
+                      {(item as any).epicTitle ? (
+                        <span
+                          className="flex items-center gap-1 text-primary-400 hover:text-primary-300 cursor-pointer hover:underline"
+                          onClick={() => navigate(`/epics?open=${item.epic_id}`)}
+                        >
+                          <FolderKanban size={11} />
+                          {(item as any).epicTitle}
+                        </span>
+                      ) : item.epic_id ? (
+                        <span
+                          className="flex items-center gap-1 text-primary-400 hover:text-primary-300 cursor-pointer hover:underline"
+                          onClick={() => navigate(`/epics?open=${item.epic_id}`)}
+                        >
+                          <FolderKanban size={11} />
+                          {item.epic_id.substring(0, 8)}...
+                        </span>
                       ) : (
                         <span>General</span>
                       )}

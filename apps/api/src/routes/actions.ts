@@ -2,6 +2,20 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/connection.js';
 
+/**
+ * Ensure the manual-entry sentinel event exists for manually created items.
+ * actions has NOT NULL FK on source_event_id.
+ */
+function ensureManualSentinel(): void {
+  const MANUAL_EVENT_ID = 'manual-entry-sentinel';
+  const existing = db.prepare('SELECT id FROM events WHERE id = ?').get(MANUAL_EVENT_ID) as { id: string } | undefined;
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO events (id, status, created_at, updated_at) VALUES (?, 'completed', datetime('now'), datetime('now'))`
+    ).run(MANUAL_EVENT_ID);
+  }
+}
+
 interface CreateActionBody {
   sourceEventId: string;
   epicId?: string;
@@ -181,18 +195,25 @@ export async function actionsRoutes(server: FastifyInstance): Promise<void> {
       reply.status(400);
       return { error: 'sourceEventId is required' };
     }
-    
+
+    // If using manual sentinel, ensure the sentinel event exists
+    let sourceEventId = body.sourceEventId;
+    if (sourceEventId === 'manual-entry-sentinel' || sourceEventId.startsWith('manual-')) {
+      ensureManualSentinel();
+      sourceEventId = 'manual-entry-sentinel';
+    }
+
     const actionId = crypto.randomUUID();
     const now = new Date().toISOString();
-    
+
     db.prepare(`
       INSERT INTO actions (
-        id, source_event_id, epic_id, type, title, body, 
+        id, source_event_id, epic_id, type, title, body,
         priority, due_at, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       actionId,
-      body.sourceEventId,
+      sourceEventId,
       body.epicId || null,
       body.type || 'follow_up',
       body.title.trim(),

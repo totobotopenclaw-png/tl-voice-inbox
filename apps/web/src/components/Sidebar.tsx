@@ -11,19 +11,23 @@ import {
   CheckSquare,
 } from 'lucide-react'
 import { useState } from 'react'
+import { useBadgeCounts } from '../hooks/useBadgeCounts'
 
-const navItems = [
+type BadgeKey = 'openActions' | 'deadlines' | 'needsReview' | 'blockers';
+
+const navItems: Array<{ path: string; label: string; icon: typeof Mic; badgeKey?: BadgeKey }> = [
   { path: '/', label: 'Dashboard', icon: Mic },
-  { path: '/inbox', label: 'Inbox', icon: Inbox },
+  { path: '/inbox', label: 'Inbox', icon: Inbox, badgeKey: 'openActions' },
   { path: '/actions', label: 'Actions', icon: CheckSquare },
-  { path: '/deadlines', label: 'Deadlines', icon: Clock },
-  { path: '/needs-review', label: 'Needs Review', icon: HelpCircle },
-  { path: '/epics', label: 'Epics', icon: FolderKanban },
+  { path: '/deadlines', label: 'Deadlines', icon: Clock, badgeKey: 'deadlines' },
+  { path: '/needs-review', label: 'Needs Review', icon: HelpCircle, badgeKey: 'needsReview' },
+  { path: '/epics', label: 'Epics', icon: FolderKanban, badgeKey: 'blockers' },
   { path: '/knowledge', label: 'Knowledge', icon: BookOpen },
 ]
 
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { counts } = useBadgeCounts()
 
   return (
     <>
@@ -70,6 +74,25 @@ export function Sidebar() {
           <nav className="flex-1 p-4 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon
+              let badgeCount = 0
+              let badgeStyle = 'bg-primary-600/20 text-primary-400'
+
+              if (counts && item.badgeKey) {
+                if (item.badgeKey === 'openActions') {
+                  badgeCount = counts.openActions
+                } else if (item.badgeKey === 'deadlines') {
+                  badgeCount = counts.overdueActions + counts.dueTodayActions
+                  if (counts.overdueActions > 0) badgeStyle = 'bg-red-500/20 text-red-400'
+                } else if (item.badgeKey === 'needsReview') {
+                  badgeCount = counts.needsReview
+                  if (badgeCount > 0) badgeStyle = 'bg-amber-500/20 text-amber-400'
+                } else if (item.badgeKey === 'blockers') {
+                  badgeCount = counts.openBlockers
+                  if (counts.staleBlockers > 0) badgeStyle = 'bg-red-500/20 text-red-400'
+                  else if (badgeCount > 0) badgeStyle = 'bg-amber-500/20 text-amber-400'
+                }
+              }
+
               return (
                 <NavLink
                   key={item.path}
@@ -85,6 +108,11 @@ export function Sidebar() {
                 >
                   <Icon size={18} />
                   {item.label}
+                  {badgeCount > 0 && (
+                    <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-medium ${badgeStyle}`}>
+                      {badgeCount}
+                    </span>
+                  )}
                 </NavLink>
               )
             })}

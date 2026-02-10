@@ -2,6 +2,20 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/connection.js';
 
+/**
+ * Ensure the manual-entry sentinel event exists for manually created items.
+ * knowledge_items has NOT NULL FK on source_event_id.
+ */
+function ensureManualSentinel(): void {
+  const MANUAL_EVENT_ID = 'manual-entry-sentinel';
+  const existing = db.prepare('SELECT id FROM events WHERE id = ?').get(MANUAL_EVENT_ID) as { id: string } | undefined;
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO events (id, status, created_at, updated_at) VALUES (?, 'completed', datetime('now'), datetime('now'))`
+    ).run(MANUAL_EVENT_ID);
+  }
+}
+
 interface CreateKnowledgeBody {
   sourceEventId: string;
   epicId?: string;
@@ -152,7 +166,12 @@ export async function knowledgeRoutes(server: FastifyInstance): Promise<void> {
       reply.status(400);
       return { error: 'sourceEventId is required' };
     }
-    
+
+    // If using the manual sentinel, ensure it exists
+    if (body.sourceEventId === 'manual-entry-sentinel') {
+      ensureManualSentinel();
+    }
+
     const knowledgeId = crypto.randomUUID();
     const now = new Date().toISOString();
     

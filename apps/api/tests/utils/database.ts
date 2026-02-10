@@ -206,6 +206,11 @@ function createSchema(db: DatabaseType): void {
       description TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       resolved_at TEXT,
+      owner TEXT,
+      eta TEXT,
+      last_checked_at TEXT,
+      next_follow_up_at TEXT,
+      escalation_level INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -222,6 +227,11 @@ function createSchema(db: DatabaseType): void {
       description TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       resolved_at TEXT,
+      owner TEXT,
+      eta TEXT,
+      last_checked_at TEXT,
+      next_follow_up_at TEXT,
+      escalation_level INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );

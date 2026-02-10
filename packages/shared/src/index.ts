@@ -87,6 +87,11 @@ export interface Blocker extends BaseEntity {
   description: string;
   status: 'open' | 'resolved';
   resolved_at: string | null;
+  owner: string | null;
+  eta: string | null;
+  last_checked_at: string | null;
+  next_follow_up_at: string | null;
+  escalation_level: number;
 }
 
 // Dependency entity
@@ -96,6 +101,11 @@ export interface Dependency extends BaseEntity {
   description: string;
   status: 'open' | 'resolved';
   resolved_at: string | null;
+  owner: string | null;
+  eta: string | null;
+  last_checked_at: string | null;
+  next_follow_up_at: string | null;
+  escalation_level: number;
 }
 
 // Issue entity
@@ -177,11 +187,15 @@ export interface ExtractorDeadline {
 export interface ExtractorBlocker {
   description: string;
   status: 'open';
+  owner: string | null;
+  eta: string | null;
 }
 
 export interface ExtractorDependency {
   description: string;
   status: 'open';
+  owner: string | null;
+  eta: string | null;
 }
 
 export interface ExtractorIssue {
@@ -214,4 +228,50 @@ export interface ExtractorOutput {
   email_drafts: ExtractorEmailDraft[];
   needs_review: boolean;
   evidence_snippets: string[];
+}
+
+// Dashboard briefing types
+export interface DashboardBriefing {
+  overdue: BriefingAction[];
+  dueToday: BriefingAction[];
+  staleBlockers: BriefingBlocker[];
+  needsReviewCount: number;
+  recentEvents: BriefingEvent[];
+  counts: BriefingCounts;
+}
+
+export interface BriefingAction {
+  id: string;
+  type: 'action' | 'deadline';
+  title: string;
+  priority: Priority;
+  dueAt: string;
+  epicTitle: string | null;
+  daysOverdue: number;
+}
+
+export interface BriefingBlocker {
+  id: string;
+  description: string;
+  epicId: string | null;
+  epicTitle: string | null;
+  owner: string | null;
+  eta: string | null;
+  daysSinceUpdate: number;
+}
+
+export interface BriefingEvent {
+  id: string;
+  status: EventStatus;
+  transcriptPreview: string | null;
+  createdAt: string;
+}
+
+export interface BriefingCounts {
+  openActions: number;
+  overdueActions: number;
+  dueTodayActions: number;
+  openBlockers: number;
+  staleBlockers: number;
+  needsReview: number;
 }

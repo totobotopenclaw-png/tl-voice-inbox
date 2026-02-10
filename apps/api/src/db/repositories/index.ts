@@ -255,12 +255,12 @@ export const knowledgeRepository = {
 
 // Blockers repository
 export const blockersRepository = {
-  create(data: Omit<Blocker, 'id' | 'created_at' | 'updated_at' | 'status' | 'resolved_at'>): Blocker {
+  create(data: Omit<Blocker, 'id' | 'created_at' | 'updated_at' | 'status' | 'resolved_at' | 'last_checked_at' | 'next_follow_up_at' | 'escalation_level' | 'owner' | 'eta'> & { owner?: string | null; eta?: string | null }): Blocker {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO blockers (id, source_event_id, epic_id, description) VALUES (?, ?, ?, ?)
+      INSERT INTO blockers (id, source_event_id, epic_id, description, owner, eta) VALUES (?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, data.source_event_id, data.epic_id, data.description);
+    stmt.run(id, data.source_event_id, data.epic_id, data.description, data.owner || null, data.eta || null);
     return this.findById(id)!;
   },
 
@@ -274,20 +274,63 @@ export const blockersRepository = {
     return stmt.all(epicId) as Blocker[];
   },
 
+  findAllOpen(): Blocker[] {
+    const stmt = db.prepare("SELECT * FROM blockers WHERE status = 'open' ORDER BY updated_at ASC");
+    return stmt.all() as Blocker[];
+  },
+
+  findStale(thresholdDays: number = 3): Blocker[] {
+    const stmt = db.prepare(`
+      SELECT * FROM blockers
+      WHERE status = 'open'
+        AND (next_follow_up_at IS NULL OR next_follow_up_at <= datetime('now'))
+        AND updated_at < datetime('now', '-' || ? || ' days')
+      ORDER BY updated_at ASC
+    `);
+    return stmt.all(thresholdDays) as Blocker[];
+  },
+
   resolve(id: string): void {
-    const stmt = db.prepare(`UPDATE blockers SET status = 'resolved', resolved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
+    const stmt = db.prepare(`UPDATE blockers SET status = 'resolved', resolved_at = datetime('now'), last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
     stmt.run(id);
+  },
+
+  snooze(id: string, nextFollowUpAt: string): void {
+    const stmt = db.prepare(`UPDATE blockers SET next_follow_up_at = ?, last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
+    stmt.run(nextFollowUpAt, id);
+  },
+
+  updateChecked(id: string): void {
+    const stmt = db.prepare(`UPDATE blockers SET last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
+    stmt.run(id);
+  },
+
+  update(id: string, data: { owner?: string | null; eta?: string | null; escalation_level?: number }): void {
+    const updates: string[] = [];
+    const params: (string | number | null)[] = [];
+
+    if (data.owner !== undefined) { updates.push('owner = ?'); params.push(data.owner); }
+    if (data.eta !== undefined) { updates.push('eta = ?'); params.push(data.eta); }
+    if (data.escalation_level !== undefined) { updates.push('escalation_level = ?'); params.push(data.escalation_level); }
+
+    if (updates.length === 0) return;
+
+    updates.push("last_checked_at = datetime('now')");
+    updates.push("updated_at = datetime('now')");
+    params.push(id);
+
+    db.prepare(`UPDATE blockers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
   },
 };
 
 // Dependencies repository
 export const dependenciesRepository = {
-  create(data: Omit<Dependency, 'id' | 'created_at' | 'updated_at' | 'status' | 'resolved_at'>): Dependency {
+  create(data: Omit<Dependency, 'id' | 'created_at' | 'updated_at' | 'status' | 'resolved_at' | 'last_checked_at' | 'next_follow_up_at' | 'escalation_level' | 'owner' | 'eta'> & { owner?: string | null; eta?: string | null }): Dependency {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO dependencies (id, source_event_id, epic_id, description) VALUES (?, ?, ?, ?)
+      INSERT INTO dependencies (id, source_event_id, epic_id, description, owner, eta) VALUES (?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, data.source_event_id, data.epic_id, data.description);
+    stmt.run(id, data.source_event_id, data.epic_id, data.description, data.owner || null, data.eta || null);
     return this.findById(id)!;
   },
 
@@ -301,9 +344,52 @@ export const dependenciesRepository = {
     return stmt.all(epicId) as Dependency[];
   },
 
+  findAllOpen(): Dependency[] {
+    const stmt = db.prepare("SELECT * FROM dependencies WHERE status = 'open' ORDER BY updated_at ASC");
+    return stmt.all() as Dependency[];
+  },
+
+  findStale(thresholdDays: number = 3): Dependency[] {
+    const stmt = db.prepare(`
+      SELECT * FROM dependencies
+      WHERE status = 'open'
+        AND (next_follow_up_at IS NULL OR next_follow_up_at <= datetime('now'))
+        AND updated_at < datetime('now', '-' || ? || ' days')
+      ORDER BY updated_at ASC
+    `);
+    return stmt.all(thresholdDays) as Dependency[];
+  },
+
   resolve(id: string): void {
-    const stmt = db.prepare(`UPDATE dependencies SET status = 'resolved', resolved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
+    const stmt = db.prepare(`UPDATE dependencies SET status = 'resolved', resolved_at = datetime('now'), last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
     stmt.run(id);
+  },
+
+  snooze(id: string, nextFollowUpAt: string): void {
+    const stmt = db.prepare(`UPDATE dependencies SET next_follow_up_at = ?, last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
+    stmt.run(nextFollowUpAt, id);
+  },
+
+  updateChecked(id: string): void {
+    const stmt = db.prepare(`UPDATE dependencies SET last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`);
+    stmt.run(id);
+  },
+
+  update(id: string, data: { owner?: string | null; eta?: string | null; escalation_level?: number }): void {
+    const updates: string[] = [];
+    const params: (string | number | null)[] = [];
+
+    if (data.owner !== undefined) { updates.push('owner = ?'); params.push(data.owner); }
+    if (data.eta !== undefined) { updates.push('eta = ?'); params.push(data.eta); }
+    if (data.escalation_level !== undefined) { updates.push('escalation_level = ?'); params.push(data.escalation_level); }
+
+    if (updates.length === 0) return;
+
+    updates.push("last_checked_at = datetime('now')");
+    updates.push("updated_at = datetime('now')");
+    params.push(id);
+
+    db.prepare(`UPDATE dependencies SET ${updates.join(', ')} WHERE id = ?`).run(...params);
   },
 };
 

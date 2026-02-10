@@ -45,7 +45,7 @@ export function Header() {
   }
 
   return (
-    <header className="h-16 border-b border-slate-800 bg-slate-900/50 backdrop-blur flex items-center px-6">
+    <header className="h-16 shrink-0 border-b border-slate-800 bg-slate-900/50 backdrop-blur flex items-center px-6">
       <div className="lg:hidden w-10" /> {/* Spacer for mobile menu button */}
       
       <div className="flex-1 max-w-xl relative">

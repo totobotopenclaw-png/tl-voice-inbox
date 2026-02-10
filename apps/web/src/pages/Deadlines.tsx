@@ -1,39 +1,10 @@
-import { Clock, AlertTriangle, Calendar } from 'lucide-react'
+import { useState } from 'react'
+import { Clock, AlertCircle, RefreshCw, Circle } from 'lucide-react'
+import { useDeadlines } from '../hooks/useDeadlines'
 
-const mockDeadlines = [
-  {
-    id: '1',
-    title: 'Submit quarterly review',
-    due_at: '2026-02-05T17:00:00Z',
-    priority: 'P0',
-    epic: null,
-    status: 'upcoming',
-  },
-  {
-    id: '2',
-    title: 'Deploy API v2 to production',
-    due_at: '2026-02-07T10:00:00Z',
-    priority: 'P0',
-    epic: 'API v2 Migration',
-    status: 'upcoming',
-  },
-  {
-    id: '3',
-    title: 'Security audit completion',
-    due_at: '2026-02-10T23:59:00Z',
-    priority: 'P1',
-    epic: 'Security Hardening',
-    status: 'upcoming',
-  },
-  {
-    id: '4',
-    title: 'Team offsite planning',
-    due_at: '2026-02-15T12:00:00Z',
-    priority: 'P2',
-    epic: null,
-    status: 'upcoming',
-  },
-]
+const API_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_API_URL || '')
+  : '';
 
 const priorityColors: Record<string, string> = {
   P0: 'text-red-400 bg-red-500/10 border-red-500/20',
@@ -43,83 +14,152 @@ const priorityColors: Record<string, string> = {
 }
 
 export function Deadlines() {
+  const { deadlines, loading, error, refresh } = useDeadlines()
+  const [completing, setCompleting] = useState<string | null>(null)
   const now = new Date()
-  
-  const sortedDeadlines = [...mockDeadlines].sort((a, b) => 
-    new Date(a.due_at).getTime() - new Date(b.due_at).getTime()
-  )
+
+  const handleComplete = async (id: string) => {
+    setCompleting(id)
+    try {
+      const res = await fetch(`${API_URL}/api/actions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' }),
+      })
+      if (!res.ok) throw new Error('Failed to complete')
+      refresh()
+    } catch (err) {
+      console.error('Failed to complete deadline:', err)
+    } finally {
+      setCompleting(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-16">
+        <div className="animate-spin w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+        <p className="text-slate-500">Loading deadlines...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-16 bg-red-500/10 border border-red-500/20 rounded-xl">
+        <AlertCircle size={48} className="mx-auto text-red-400 mb-4" />
+        <p className="text-red-400">{error}</p>
+        <button
+          onClick={refresh}
+          className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-300"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-100">Deadlines</h1>
-        <button className="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium text-white transition-colors">
-          + New Deadline
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refresh}
+            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <span className="text-sm text-slate-500">{deadlines.length} items</span>
+        </div>
       </div>
 
-      {/* Timeline */}
-      <div className="space-y-4">
-        {sortedDeadlines.map((deadline, index) => {
-          const dueDate = new Date(deadline.due_at)
-          const daysUntil = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-          const isOverdue = daysUntil < 0
-          const isToday = daysUntil === 0
-          const isSoon = daysUntil <= 2 && daysUntil > 0
+      {deadlines.length === 0 ? (
+        <div className="text-center py-16 bg-slate-900 border border-slate-800 rounded-xl">
+          <Clock size={48} className="mx-auto text-slate-600 mb-4" />
+          <p className="text-slate-400">No deadlines yet</p>
+          <p className="text-sm text-slate-600 mt-1">Deadlines will appear here when captured from voice notes</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {deadlines.map((deadline, index) => {
+            const dueDate = deadline.dueAt ? new Date(deadline.dueAt) : null
+            const daysUntil = dueDate ? Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
+            const isOverdue = daysUntil !== null && daysUntil < 0
+            const isToday = daysUntil === 0
+            const isSoon = daysUntil !== null && daysUntil <= 2 && daysUntil > 0
+            const isCompleting = completing === deadline.id
 
-          return (
-            <div
-              key={deadline.id}
-              className={`relative pl-8 pb-8 ${index !== sortedDeadlines.length - 1 ? 'border-l-2 border-slate-800' : ''}`}
-            >
-              {/* Timeline dot */}
-              <div className={`
-                absolute left-0 top-0 w-4 h-4 -translate-x-1/2 rounded-full border-2
-                ${isOverdue ? 'bg-red-500 border-red-500' : ''}
-                ${isToday ? 'bg-amber-500 border-amber-500 animate-pulse' : ''}
-                ${isSoon ? 'bg-amber-500/50 border-amber-500' : ''}
-                ${!isOverdue && !isToday && !isSoon ? 'bg-slate-800 border-slate-600' : ''}
-              `} />
+            return (
+              <div
+                key={deadline.id}
+                className={`relative pl-8 pb-8 ${index !== deadlines.length - 1 ? 'border-l-2 border-slate-800' : ''}`}
+              >
+                {/* Timeline dot */}
+                <div className={`
+                  absolute left-0 top-0 w-4 h-4 -translate-x-1/2 rounded-full border-2
+                  ${isOverdue ? 'bg-red-500 border-red-500' : ''}
+                  ${isToday ? 'bg-amber-500 border-amber-500 animate-pulse' : ''}
+                  ${isSoon ? 'bg-amber-500/50 border-amber-500' : ''}
+                  ${!isOverdue && !isToday && !isSoon ? 'bg-slate-800 border-slate-600' : ''}
+                `} />
 
-              <div className={`
-                bg-slate-900 border rounded-xl p-4
-                ${priorityColors[deadline.priority]}
-              `}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium text-slate-200">{deadline.title}</h3>
-                    
-                    {deadline.epic && (
-                      <p className="text-sm mt-1 opacity-80">{deadline.epic}</p>
-                    )}
-
-                    <div className="flex items-center gap-4 mt-3 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Clock size={14} />
-                        <span>{dueDate.toLocaleDateString()} at {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <div className={`
+                  bg-slate-900 border rounded-xl p-4
+                  ${priorityColors[deadline.priority] || priorityColors.P2}
+                `}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleComplete(deadline.id)}
+                          disabled={isCompleting}
+                          className="text-slate-500 hover:text-emerald-400 transition-colors shrink-0 disabled:opacity-50"
+                          title="Mark as done"
+                        >
+                          {isCompleting ? (
+                            <div className="animate-spin w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full" />
+                          ) : (
+                            <Circle size={20} />
+                          )}
+                        </button>
+                        <h3 className="font-medium text-slate-200">{deadline.title}</h3>
                       </div>
 
-                      {isOverdue && (
-                        <span className="text-red-400 font-medium">Overdue by {Math.abs(daysUntil)} days</span>
+                      {deadline.epicTitle && (
+                        <p className="text-sm mt-1 opacity-80 ml-7">{deadline.epicTitle}</p>
                       )}
-                      {isToday && (
-                        <span className="text-amber-400 font-medium">Due today!</span>
-                      )}
-                      {!isOverdue && !isToday && (
-                        <span className={isSoon ? 'text-amber-400' : ''}>{daysUntil} days left</span>
-                      )}
-                    </div>
-                  </div>
 
-                  <span className="px-2 py-1 rounded text-xs font-medium bg-black/20">
-                    {deadline.priority}
-                  </span>
+                      <div className="flex items-center gap-4 mt-3 text-sm ml-7">
+                        {dueDate && (
+                          <div className="flex items-center gap-1">
+                            <Clock size={14} />
+                            <span>{dueDate.toLocaleDateString()} at {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        )}
+
+                        {isOverdue && daysUntil !== null && (
+                          <span className="text-red-400 font-medium">Overdue by {Math.abs(daysUntil)} days</span>
+                        )}
+                        {isToday && (
+                          <span className="text-amber-400 font-medium">Due today!</span>
+                        )}
+                        {!isOverdue && !isToday && daysUntil !== null && (
+                          <span className={isSoon ? 'text-amber-400' : ''}>{daysUntil} days left</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <span className="px-2 py-1 rounded text-xs font-medium bg-black/20">
+                      {deadline.priority}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

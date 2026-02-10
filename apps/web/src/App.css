@@ -1,3 +1,4 @@
+/* Legacy app styles - kept for reference, main layout handled by Tailwind */
 .app {
   min-height: 100vh;
   display: flex;
@@ -18,14 +19,6 @@
 .app-header p {
   margin: 0;
   opacity: 0.8;
-}
-
-main {
-  flex: 1;
-  padding: 2rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 .placeholder {
