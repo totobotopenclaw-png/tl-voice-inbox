@@ -116,10 +116,14 @@ export function Inbox() {
 
       if (!response.ok) throw new Error('Failed to update action')
 
-      // Optimistic update
-      setActions(prev => prev.map(a =>
-        a.id === actionId ? { ...a, status: newStatus } : a
-      ))
+      // Remove completed items from list, restore reopened ones via refetch
+      if (newStatus === 'done') {
+        setActions(prev => prev.filter(a => a.id !== actionId))
+      } else {
+        setActions(prev => prev.map(a =>
+          a.id === actionId ? { ...a, status: newStatus } : a
+        ))
+      }
     } catch (err) {
       alert('Failed to update: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {

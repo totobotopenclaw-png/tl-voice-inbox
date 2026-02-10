@@ -86,13 +86,20 @@ export function useActions(options: UseActionsOptions = {}) {
       }
 
       const data = await response.json();
-      setActions(prev => prev.map(a => a.id === id ? { ...a, ...data.action } : a));
-      return data.action;
+      const updated = data.action;
+
+      // If status changed and no longer matches the active filter, remove from list
+      if (options.status && updated.status !== options.status) {
+        setActions(prev => prev.filter(a => a.id !== id));
+      } else {
+        setActions(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
+      }
+      return updated;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update action');
       throw err;
     }
-  }, []);
+  }, [options.status]);
 
   const deleteAction = useCallback(async (id: string) => {
     try {
