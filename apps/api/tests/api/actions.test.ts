@@ -369,7 +369,7 @@ describe('Actions API', () => {
       const body = JSON.parse(response.payload);
       expect(body.action.title).toBe('Updated Title');
       expect(body.action.priority).toBe('P0');
-      expect(body.action.completed_at).not.toBeNull();
+      expect(body.action.completedAt).not.toBeNull();
     });
 
     it('should return 404 for non-existent action', async () => {
@@ -427,7 +427,7 @@ describe('Actions API', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.payload);
-      expect(body.action.completed_at).toBeNull();
+      expect(body.action.completedAt).toBeNull();
     });
   });
 

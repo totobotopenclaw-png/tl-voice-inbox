@@ -308,9 +308,51 @@ export async function actionsRoutes(server: FastifyInstance): Promise<void> {
     params.push(id);
     
     db.prepare(`UPDATE actions SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-    
-    const updated = db.prepare('SELECT * FROM actions WHERE id = ?').get(id);
-    return { action: updated };
+
+    const row = db.prepare(`
+      SELECT
+        a.*,
+        e.title as epic_title,
+        GROUP_CONCAT(m.name) as mention_names
+      FROM actions a
+      LEFT JOIN epics e ON a.epic_id = e.id
+      LEFT JOIN mentions m ON m.action_id = a.id
+      WHERE a.id = ?
+      GROUP BY a.id
+    `).get(id) as {
+      id: string;
+      source_event_id: string;
+      epic_id: string | null;
+      type: string;
+      title: string;
+      body: string | null;
+      priority: string;
+      due_at: string | null;
+      completed_at: string | null;
+      created_at: string;
+      updated_at: string;
+      epic_title: string | null;
+      mention_names: string | null;
+    };
+
+    return {
+      action: {
+        id: row.id,
+        sourceEventId: row.source_event_id,
+        epicId: row.epic_id,
+        type: row.type,
+        title: row.title,
+        body: row.body || '',
+        priority: row.priority as 'P0' | 'P1' | 'P2' | 'P3',
+        status: row.completed_at ? 'done' : 'open' as 'open' | 'done' | 'cancelled',
+        dueAt: row.due_at,
+        completedAt: row.completed_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        epicTitle: row.epic_title,
+        mentions: row.mention_names ? row.mention_names.split(',') : [],
+      },
+    };
   });
 
   // DELETE /api/actions/:id - Delete action
