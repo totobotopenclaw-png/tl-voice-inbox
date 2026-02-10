@@ -53,12 +53,16 @@ const DeadlineSchema = z.object({
 const BlockerSchema = z.object({
   description: z.string().min(1).max(2000),
   status: z.enum(['open']).default('open'),
+  owner: z.string().nullable().optional().default(null),
+  eta: z.string().nullable().optional().default(null),
 });
 
 // Dependency schema
 const DependencySchema = z.object({
   description: z.string().min(1).max(2000),
   status: z.enum(['open']).default('open'),
+  owner: z.string().nullable().optional().default(null),
+  eta: z.string().nullable().optional().default(null),
 });
 
 // Issue schema

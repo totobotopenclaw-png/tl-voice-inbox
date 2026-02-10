@@ -870,6 +870,8 @@ export class ExtractWorker {
         source_event_id: eventId,
         epic_id: epicId,
         description: blocker.description,
+        owner: blocker.owner || null,
+        eta: blocker.eta || null,
       });
     }
 
@@ -879,6 +881,8 @@ export class ExtractWorker {
         source_event_id: eventId,
         epic_id: epicId,
         description: dep.description,
+        owner: dep.owner || null,
+        eta: dep.eta || null,
       });
     }
 

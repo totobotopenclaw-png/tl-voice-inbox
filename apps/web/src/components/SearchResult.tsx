@@ -34,7 +34,7 @@ export function SearchResult({ result, onClick }: SearchResultProps) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-slate-200 truncate">{result.title}</p>
-          <p className="text-xs text-slate-500 line-clamp-2">{result.snippet}</p>
+          <p className="text-xs text-slate-500 line-clamp-2">{result.content}</p>
           <p className="text-xs text-slate-600 mt-1">{typeLabels[result.type]}</p>
         </div>
       </div>

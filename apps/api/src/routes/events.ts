@@ -238,6 +238,28 @@ export async function eventsRoutes(server: FastifyInstance): Promise<void> {
     };
   });
   
+  // PATCH /api/events/:id - Update event transcript
+  server.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const { id } = request.params;
+    const body = request.body as { transcript?: string };
+
+    const event = db.prepare('SELECT * FROM events WHERE id = ?').get(id) as
+      | { id: string; transcript: string | null }
+      | undefined;
+
+    if (!event) {
+      return reply.status(404).send({ error: 'Event not found' });
+    }
+
+    if (body.transcript !== undefined) {
+      db.prepare('UPDATE events SET transcript = ?, updated_at = datetime(\'now\') WHERE id = ?')
+        .run(body.transcript, id);
+    }
+
+    const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(id) as any;
+    return { event: updated };
+  });
+
   // GET /api/events/:id/candidates - Get top epic candidates for event
   server.get<{ Params: { id: string } }>('/:id/candidates', async (request, reply) => {
     const { id } = request.params;

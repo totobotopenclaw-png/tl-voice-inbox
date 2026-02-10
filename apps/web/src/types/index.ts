@@ -40,6 +40,6 @@ export interface SearchResult {
   type: 'action' | 'epic' | 'knowledge' | 'event'
   id: string
   title: string
-  snippet: string
+  content: string
   rank: number
 }

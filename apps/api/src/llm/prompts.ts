@@ -54,8 +54,8 @@ const JSON_SCHEMA = `{
   "epic_splits": [{"epic_name":"string","content_summary":"string","actions":[],"deadlines":[],"knowledge":[],"blockers":[],"dependencies":[],"issues":[]}],
   "new_actions": [{"type":"follow_up|deadline|email","title":"string","priority":"P0|P1|P2","due_at":"ISO8601-or-null","mentions":["string"],"body":"string"}],
   "new_deadlines": [{"title":"string","priority":"P0|P1","due_at":"ISO8601"}],
-  "blockers": [{"description":"string"}],
-  "dependencies": [{"description":"string"}],
+  "blockers": [{"description":"string","owner":"person-name-or-null","eta":"ISO8601-or-null"}],
+  "dependencies": [{"description":"string","owner":"person-name-or-null","eta":"ISO8601-or-null"}],
   "issues": [{"description":"string"}],
   "knowledge_items": [{"title":"string","kind":"tech|decision|process","tags":["string"],"body_md":"string"}],
   "email_drafts": [{"subject":"string","body":"string"}],
@@ -63,10 +63,29 @@ const JSON_SCHEMA = `{
   "evidence_snippets": ["string"]
 }`;
 
-// System prompt for extraction
-const SYSTEM_PROMPT = `You are a structured data extractor for a Tech Lead's voice inbox system.
+// System prompt for extraction — built dynamically to inject current date
+function buildSystemPrompt(): string {
+  const now = new Date();
+  const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const dayName = days[now.getDay()];
+
+  // Use LOCAL date (not UTC) to avoid timezone-induced off-by-one errors
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const isoDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  // Pre-compute tomorrow using local date
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const tomorrowISO = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+
+  return `You are a structured data extractor for a Tech Lead's voice inbox system.
 
 Your task is to analyze voice transcripts and extract structured project information.
+
+CURRENT DATE CONTEXT:
+- Today is ${dayName}, ${isoDate}
+- "hoy" (today) = ${isoDate}T23:59:59Z
+- "mañana" (tomorrow) = ${tomorrowISO}T23:59:59Z
+- Use this date to resolve ALL relative dates: "el miércoles", "esta semana", "la próxima semana", "el viernes", etc.
 
 CRITICAL RULES:
 1. Output MUST be valid, parseable JSON - NO markdown, NO code blocks, NO explanations
@@ -78,7 +97,7 @@ CRITICAL RULES:
 7. Spanish input is expected - English technical terms may appear mixed in
 8. Be conservative - use "needs_review": true if uncertain about epic assignment
 9. P0 = urgent/critical, P1 = important, P2 = normal priority
-10. Convert relative dates to absolute ISO 8601 datetimes (assume current year 2026)
+10. Convert relative dates to absolute ISO 8601 datetimes using the CURRENT DATE CONTEXT above
 11. Evidence snippets should be exact quotes from the transcript
 
 LABELS (include all that apply):
@@ -86,7 +105,8 @@ LABELS (include all that apply):
 - KnowledgeNote: Technical or process knowledge
 - ActionItem: Follow-up action required
 - Decision: Decision was made
-- Blocker: Something is blocked
+- Blocker: Something is blocked or blocking progress
+- Dependency: Something depends on an external team/person/system
 - Issue: Problem identified
 
 EPIC ASSIGNMENT - MANDATORY RULES:
@@ -128,6 +148,31 @@ If a transcript contains clearly separated content for different epics, you can 
   ]
 }
 
+BLOCKER/DEPENDENCY EXTRACTION - CRITICAL:
+When the transcript mentions something is blocked, blocking progress, or waiting on someone, you MUST add it to the "blockers" array.
+
+Spanish keywords that indicate BLOCKERS (add to "blockers" array):
+- "bloqueo", "bloqueado/a", "bloqueador", "nos bloquea", "está bloqueando"
+- "estamos bloqueados", "hay un bloqueo", "tenemos un blocker"
+- "no podemos avanzar", "estamos parados", "estamos atorados"
+- "falta aprobación", "esperando aprobación", "pendiente de"
+
+Spanish keywords that indicate DEPENDENCIES (add to "dependencies" array):
+- "dependemos de", "depende de", "dependencia"
+- "necesitamos que", "esperando a que"
+- "el equipo de X tiene que", "nos falta el entregable de"
+
+For each blocker/dependency:
+- Extract "owner": the person/team responsible (e.g., "Carlos", "el equipo de infra", "Ana")
+- Extract "eta": expected resolution date if mentioned (ISO 8601). Use CURRENT DATE CONTEXT above.
+- If no owner or ETA is mentioned, set them to null
+- description: a clear summary of what is blocked/needed
+
+Examples:
+- "hay un bloqueo con el deploy" -> blockers: [{"description": "Bloqueo con el deploy", "owner": null, "eta": null}]
+- "estamos bloqueados por Carlos" -> blockers: [{"description": "Bloqueados por Carlos", "owner": "Carlos", "eta": null}]
+- "dependemos del equipo de QA para testing" -> dependencies: [{"description": "Dependencia del equipo de QA para testing", "owner": "equipo de QA", "eta": null}]
+
 ACTION EXTRACTION:
 - "follow_up": General task without specific deadline
 - "deadline": Task with specific date/time (extract to new_deadlines too)
@@ -140,6 +185,7 @@ KNOWLEDGE EXTRACTION:
 
 EXAMPLE OUTPUT FORMAT:
 {"labels":["ActionItem"],"resolved_epic":null,"epic_mentions":[],"new_actions":[],"new_deadlines":[],"blockers":[],"dependencies":[],"issues":[],"knowledge_items":[],"email_drafts":[],"needs_review":false,"evidence_snippets":[]}`;
+}
 
 /**
  * Build the extraction prompt with context
@@ -243,10 +289,10 @@ If the error was about truncated content, output a valid but possibly incomplete
 }
 
 /**
- * Get system prompt
+ * Get system prompt (built dynamically to inject current date for relative date resolution)
  */
 export function getSystemPrompt(): string {
-  return SYSTEM_PROMPT;
+  return buildSystemPrompt();
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { HelpCircle, AlertTriangle, Check, X, FolderKanban, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { HelpCircle, AlertTriangle, Check, X, FolderKanban, Loader2, ExternalLink } from 'lucide-react'
 
 // Use relative URL in development (hits Vite proxy), absolute in production
 const API_URL = import.meta.env.PROD 
@@ -20,6 +21,7 @@ interface AmbiguousEvent {
 }
 
 export function NeedsReview() {
+  const navigate = useNavigate()
   const [events, setEvents] = useState<AmbiguousEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -172,38 +174,46 @@ export function NeedsReview() {
                   <h4 className="text-sm font-medium text-slate-400 mb-3">Suggested Epics</h4>
                   <div className="space-y-2">
                     {event.candidates.map((candidate) => (
-                      <button
-                        key={candidate.epicId}
-                        onClick={() => setSelectedEpics({ ...selectedEpics, [event.id]: candidate.epicId })}
-                        disabled={resolving[event.id]}
-                        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors disabled:opacity-50 ${
-                          selectedEpics[event.id] === candidate.epicId
-                            ? 'bg-primary-600/10 border-primary-500/50'
-                            : 'bg-slate-800 border-slate-700 hover:border-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <FolderKanban size={16} className="text-slate-400" />
-                          <span className="font-medium text-slate-200">{candidate.title}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${getConfidenceColor(candidate.confidence)}`}
-                              style={{ width: `${candidate.confidence * 100}%` }}
-                            />
+                      <div key={candidate.epicId} className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedEpics({ ...selectedEpics, [event.id]: candidate.epicId })}
+                          disabled={resolving[event.id]}
+                          className={`flex-1 flex items-center justify-between p-3 rounded-lg border transition-colors disabled:opacity-50 ${
+                            selectedEpics[event.id] === candidate.epicId
+                              ? 'bg-primary-600/10 border-primary-500/50'
+                              : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <FolderKanban size={16} className="text-slate-400" />
+                            <span className="font-medium text-slate-200">{candidate.title}</span>
                           </div>
-                          <span className="text-sm text-slate-500 w-12 text-right">
-                            {Math.round(candidate.confidence * 100)}%
-                          </span>
-                          
-                          {selectedEpics[event.id] === candidate.epicId && (
-                            <div className="w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center">
-                              <Check size={12} className="text-white" />
+                          <div className="flex items-center gap-3">
+                            <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${getConfidenceColor(candidate.confidence)}`}
+                                style={{ width: `${candidate.confidence * 100}%` }}
+                              />
                             </div>
-                          )}
-                        </div>
-                      </button>
+                            <span className="text-sm text-slate-500 w-12 text-right">
+                              {Math.round(candidate.confidence * 100)}%
+                            </span>
+
+                            {selectedEpics[event.id] === candidate.epicId && (
+                              <div className="w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center">
+                                <Check size={12} className="text-white" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => navigate(`/epics?open=${candidate.epicId}`)}
+                          className="p-2 text-slate-500 hover:text-primary-400 hover:bg-slate-800 rounded-lg transition-colors shrink-0"
+                          title="View epic details"
+                        >
+                          <ExternalLink size={14} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
